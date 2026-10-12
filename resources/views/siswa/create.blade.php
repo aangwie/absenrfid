@@ -1,0 +1,24 @@
+@extends('layouts.admin')
+@section('title', 'Tambah Siswa')
+@section('content')
+<div class="bg-slate-800/80 border border-slate-700 rounded-2xl p-5 max-w-lg">
+  @if ($errors->any())<div class="mb-4 bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs rounded-xl px-4 py-3">{{ $errors->first() }}</div>@endif
+  <form id="form-siswa" method="POST" action="{{ route('siswa.store') }}" class="flex flex-col gap-4 text-sm">@csrf
+  
+    <div><label class="block text-xs text-slate-300 mb-1">RFID Tag (tempel kartu di kios)</label><input id="rfid_tag" name="rfid_tag" value="{{ old('rfid_tag') }}" required autocomplete="off" class="w-full bg-slate-900 border border-indigo-500/60 rounded-xl px-3 py-2.5 text-indigo-300 font-mono font-bold focus:outline-none focus:border-indigo-400" autofocus><p id="rfid_warn" class="hidden mt-1 text-[11px] text-rose-300"></p></div>  
+<script>
+(function(){const f=document.getElementById('form-siswa'),el=document.getElementById('rfid_tag'),w=document.getElementById('rfid_warn');let t;async function cek(v){const r=await fetch("{{ route('siswa.cek-rfid') }}?rfid_tag="+encodeURIComponent(v),{headers:{'X-Requested-With':'XMLHttpRequest'}});return r.json();}el.addEventListener('input',()=>{clearTimeout(t);w.classList.add('hidden');t=setTimeout(async()=>{const v=el.value.trim();if(!v)return;try{const j=await cek(v);if(j.exists){w.textContent='RFID '+v+' sudah dipakai '+(j.nama||'')+' ('+(j.nisn||'')+'). Input dikosongkan, tempel kartu lain.';w.classList.remove('hidden');el.value='';el.focus();}}catch(e){}},350);});f.addEventListener('submit',async(e)=>{const v=el.value.trim();if(!v)return;e.preventDefault();try{const j=await cek(v);if(j.exists){w.textContent='RFID '+v+' sudah dipakai '+(j.nama||'')+'. Simpan dibatalkan.';w.classList.remove('hidden');el.value='';el.focus();return;}f.submit();}catch(err){f.submit();}});})();
+</script>
+  <div><label class="block text-xs text-slate-300 mb-1">NISN (angka, maks 10 digit)</label><input name="nisn" value="{{ old('nisn') }}" required inputmode="numeric" pattern="[0-9]{1,10}" maxlength="10" title="NISN hanya angka, maks 10 digit" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,10)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-white font-mono focus:outline-none focus:border-indigo-500"></div>
+    <div><label class="block text-xs text-slate-300 mb-1">Nama</label><input name="nama" value="{{ old('nama') }}" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-indigo-500"></div>
+    <div class="grid grid-cols-2 gap-3">
+      <div><label class="block text-xs text-slate-300 mb-1">Kelas</label><select name="kelas_id" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-indigo-500"><option value="">-- Pilih kelas --</option>@foreach ($kelasList as $k)<option value="{{ $k->id }}" @selected(old('kelas_id')==$k->id)>{{ $k->nama }}</option>@endforeach</select></div>
+      <div><label class="block text-xs text-slate-300 mb-1">Gender</label><select name="gender" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-indigo-500">
+          <option value="L" @selected(old('gender')==='L' )>Laki-laki (L)</option>
+          <option value="P" @selected(old('gender')==='P' )>Perempuan (P)</option>
+        </select></div>
+    </div>
+    <div class="flex gap-2"><a href="{{ route('siswa.index') }}" class="px-4 py-2.5 rounded-xl bg-slate-700 text-slate-300 text-sm">Batal</a><button class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2.5 rounded-xl">Simpan</button></div>
+  </form>
+</div>
+@endsection
