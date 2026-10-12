@@ -1,66 +1,109 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Absen RFID
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Absensi sekolah via RFID / NISN. Laravel 12 + MySQL. Timezone default `Asia/Jakarta` (`APP_TIMEZONE`).
 
-## About Laravel
+## Fitur
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- `/tap` catat Masuk / Terlambat / Pulang by jam. Tolak di luar jam, tolak pulang tanpa masuk, tolak tap ganda.
+- `/` home publik: rekap hari ini per siswa.
+- `/dashboard` statistik: total siswa, masuk, pulang, terlambat, belum absen, rekap per kelas, 8 tap terakhir.
+- `/siswa` CRUD + cek RFID duplikat + import + template. Search `q`, paginasi `withQueryString()`.
+- `/kelas` CRUD.
+- `/laporan` filter `harian|periode|bulanan`, paginasi 15. Edit `Tanpa Keterangan` -> `Sakit|Ijin` saja. Ekspor `.xlsx` (ZipArchive stdlib) + PDF murni tanpa lib, `target=_blank`, `portrait|landscape`.
+- `/pengaturan` 6 tab: `institusi|waktu|update|perawatan|backup|impor`.
+  - Institusi: nama/alamat/no_hp + logo `jpg,jpeg,png,webp max:400KB` simpan `data:mime;base64` di `tb_pengaturan.logo_sekolah` (`LONGTEXT`).
+  - Waktu: 6 kolom `masuk_mulai/selesai`, `terlambat_mulai/selesai`, `pulang_mulai/selesai` format `H:i`.
+  - Update: `git fetch + reset --hard origin/{branch}` via token (tak disimpan, log `***`).
+  - Perawatan: `optimize:clear`, `migrate --force`, `storage:link`.
+  - Backup: dump `.sql` via PDO (`SHOW TABLES` + `SHOW CREATE TABLE` + `lazy(500)`).
+  - Impor: `.sql max:10MB`, split batch 200 dalam transaksi.
+- `/profil` update nama/password. `/login` email+password.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Stack
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- PHP 8.2, Composer 2.10, Laravel 12, MySQL, Blade.
+- Tanpa lib ekspor PDF/Excel. `ZipArchive` + PDF manual.
+- Tabel: `tb_kelas`, `tb_siswa`, `tb_absensi`, `tb_pengaturan`, `users`.
 
-## Learning Laravel
+## Install (Windows + XAMPP)
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+Persyaratan: PHP ^8.2, Composer, MySQL jalan, Git.
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+```powershell
+cd "d:\PROYEK LARAVEL\absenrfid"
+composer install
+copy .env.example .env
+php artisan key:generate
+```
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+Edit `.env`:
 
-## Laravel Sponsors
+```env
+APP_NAME=AbsenRFID
+APP_URL=http://localhost:8000
+APP_TIMEZONE=Asia/Jakarta
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=absenrfid
+DB_USERNAME=root
+DB_PASSWORD=
+```
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+Buat DB bila belum ada:
 
-### Premium Partners
+```powershell
+mysql -u root -e "CREATE DATABASE IF NOT EXISTS absenrfid;"
+php artisan migrate --force
+php artisan db:seed --force
+php artisan serve --host=127.0.0.1 --port=8000
+```
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+Seed buat:
 
-## Contributing
+- User `admin@sekolah.test` / `admin123`.
+- 5 kelas: `XII RPL 1`, `XII RPL 2`, `XI TKJ 2`, `X AKL 3`, `X IPA 1`.
+- 6 siswa contoh (NISN `0082234749` = RFID `2234749610` dst).
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Cara Akses
 
-## Code of Conduct
+Base `http://localhost:8000`.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+| URL | Akses | Fungsi |
+|---|---|---|
+| `/` | publik | rekap hari ini |
+| `/login` | guest | login `admin@sekolah.test` / `admin123` |
+| `/dashboard` | auth | statistik + tap terakhir |
+| `/siswa?q=` | auth | CRUD + import |
+| `/kelas` | auth | CRUD |
+| `/laporan?mode=harian&tanggal=YYYY-MM-DD` | auth | filter + paginasi |
+| `/laporan?mode=periode&dari=&sampai=` | auth | range (auto swap bila terbalik) |
+| `/laporan?mode=bulanan&bulan=YYYY-MM` | auth | bulanan |
+| `/laporan/ekspor?mode=&format=xlsx|pdf&orientasi=` | auth | unduh, buka tab baru |
+| `/laporan/{id}/edit` | auth | ubah `Tanpa Keterangan` -> `Sakit|Ijin` |
+| `/pengaturan?tab=institusi` | auth | nama/alamat/no_hp/logo |
+| `/pengaturan?tab=waktu` | auth | jam kategori |
+| `/pengaturan?tab=backup` | auth | unduh `.sql` |
+| `/pengaturan?tab=impor` | auth | upload `.sql` |
+| `POST /tap` | publik | `tag`/`rfid_tag` -> JSON / redirect |
 
-## Security Vulnerabilities
+Jam default (`WaktuAbsensi::rentang()`):
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+- Masuk `06:30-07:30` -> `Tepat Waktu`.
+- Terlambat `07:31-13:29` -> `Terlambat`.
+- Pulang `13:30-14:30` -> catat `jam_pulang` / `Selesai`.
+- Luar itu -> `Tanpa Keterangan`, tap ditolak 422.
 
-## License
+Contoh tap:
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```powershell
+curl -X POST http://localhost:8000/tap -H "Accept: application/json" -d "tag=2234749610"
+```
+
+## Peringatan
+
+- Tab Update `reset --hard` hapus perubahan lokal permanen.
+- Tab Perawatan `migrate --force` ubah struktur langsung.
+- Tab Impor timpa semua data. Backup dulu.
+
+`ponytail:` dump PDO + load ekspor sekaligus OK skala sekolah. Pindah `mysqldump` + chunk stream bila >10rb baris.
