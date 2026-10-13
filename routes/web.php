@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DokumentasiController;
 use App\Http\Controllers\KelasController;
 use App\Http\Controllers\LaporanController;
 use App\Http\Controllers\PengaturanController;
@@ -69,6 +70,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/whatsapp', [WhatsappController::class, 'index'])->name('whatsapp.index');
     Route::post('/whatsapp/simpan', [WhatsappController::class, 'simpan'])->name('whatsapp.simpan');
     Route::post('/whatsapp/uji', [WhatsappController::class, 'uji'])->name('whatsapp.uji');
+    Route::get('/dokumentasi', [DokumentasiController::class, 'index'])->name('dokumentasi.index');
     Route::get('/profil', [ProfilController::class, 'show'])->name('profil');
     Route::put('/profil', [ProfilController::class, 'update'])->name('profil.update');
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');

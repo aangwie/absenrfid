@@ -91,6 +91,14 @@ class NotifikasiAbsensiTest extends TestCase
         }
     }
 
+    public function test_dokumentasi_semua_tab_bisa_dibuka(): void
+    {
+        $admin = \App\Models\User::factory()->create();
+        foreach (['dashboard', 'siswa', 'kelas', 'laporan', 'whatsapp', 'pengaturan', 'ngawur'] as $tab) {
+            $this->actingAs($admin)->get(route('dokumentasi.index', ['tab' => $tab]))->assertOk();
+        }
+    }
+
     public function test_tombol_perawatan_jalankan_antrean(): void
     {
         $admin = \App\Models\User::factory()->create();
