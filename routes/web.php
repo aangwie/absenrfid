@@ -70,6 +70,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/whatsapp', [WhatsappController::class, 'index'])->name('whatsapp.index');
     Route::post('/whatsapp/simpan', [WhatsappController::class, 'simpan'])->name('whatsapp.simpan');
     Route::post('/whatsapp/uji', [WhatsappController::class, 'uji'])->name('whatsapp.uji');
+    Route::post('/whatsapp/ping', [WhatsappController::class, 'ping'])->name('whatsapp.ping');
+    Route::post('/whatsapp/cek-cron', [WhatsappController::class, 'cek'])->name('whatsapp.cek');
     Route::get('/dokumentasi', [DokumentasiController::class, 'index'])->name('dokumentasi.index');
     Route::get('/profil', [ProfilController::class, 'show'])->name('profil');
     Route::put('/profil', [ProfilController::class, 'update'])->name('profil.update');

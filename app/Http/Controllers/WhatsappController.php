@@ -2,18 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\CronPing;
 use App\Models\NotifikasiLog;
 use App\Models\Pengaturan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 class WhatsappController extends Controller
 {
     public function index(Request $request)
     {
         $tab = $request->get('tab', 'konfigurasi');
-        if (! in_array($tab, ['konfigurasi', 'uji', 'log'])) {
+        if (! in_array($tab, ['konfigurasi', 'uji', 'log', 'cron'])) {
             $tab = 'konfigurasi';
         }
         $def = ['wa_url' => '', 'wa_api_key' => '', 'wa_number' => ''];
@@ -21,8 +23,9 @@ class WhatsappController extends Controller
         $logs = $tab === 'log'
             ? NotifikasiLog::with('siswa')->orderByDesc('id')->paginate(10)->withQueryString()
             : null;
+        $cron = $tab === 'cron' ? $this->statusCron($request) : null;
 
-        return view('whatsapp.index', ['tab' => $tab, 'cfg' => $cfg, 'logs' => $logs]);
+        return view('whatsapp.index', ['tab' => $tab, 'cfg' => $cfg, 'logs' => $logs, 'cron' => $cron]);
     }
 
     public function simpan(Request $request)
@@ -119,5 +122,85 @@ class WhatsappController extends Controller
                 'detail' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Tes cron hosting: antrekan satu job ping. Ping hanya dieksekusi bila
+     * ada worker (cron / queue:work manual / worker kontinu) yang memproses
+     * antrean. Hasilnya dibaca lewat cek().
+     */
+    public function ping(Request $request)
+    {
+        $id = 'ping-' . now()->format('YmdHis') . '-' . Str::lower(Str::random(4));
+        CronPing::dispatch($id);
+        session(['cron_ping' => ['id' => $id, 'at' => now()->toDateTimeString()]]);
+
+        return redirect()->route('whatsapp.index', ['tab' => 'cron'])
+            ->with('ok', 'Ping uji dikirim ke antrean (' . $id . '). Tunggu ±1 menit (satu siklus cron), JANGAN klik Jalankan Antrean dulu, lalu klik Cek Hasil.');
+    }
+
+    public function cek(Request $request)
+    {
+        $kirim = session('cron_ping');
+        $cfg = Pengaturan::ambil();
+        $status = $this->statusCron($request);
+        $cocok = $kirim && ($cfg['cron_ping_id'] ?? '') === $kirim['id'];
+
+        if ($cocok) {
+            $latensi = strtotime($cfg['cron_ping_at']) - strtotime($kirim['at']);
+            $hasil = [
+                'sukses' => true, 'waktu' => now()->toDateTimeString(),
+                'ringkasan' => 'AKTIF: ping dieksekusi worker pada ' . $cfg['cron_ping_at'] . ' (selisih ±' . max(0, $latensi) . ' detik dari pengiriman). Cron hosting berjalan benar.',
+                'detail' => 'ping_id: ' . $kirim['id'] . "\ndikirim: " . $kirim['at'] . "\ndieksekusi: " . $cfg['cron_ping_at'] . "\nhasil job: " . ($cfg['cron_ping_hasil'] ?? '-'),
+            ];
+
+            return redirect()->route('whatsapp.index', ['tab' => 'cron'])->with('ok', 'Cron AKTIF — ping berhasil dieksekusi.')->with('wa_cron_hasil', $hasil);
+        }
+
+        $sebab = 'Ping belum dieksekusi worker. Kemungkinan: (1) cron belum dipasang/salah path di panel hosting; (2) siklus cron belum tiba (tunggu ±1 menit lalu Cek lagi); (3) QUEUE_CONNECTION bukan database; (4) job gagal — cek tabel failed_jobs.';
+        if (! $kirim) {
+            $sebab = 'Belum ada ping yang dikirim dari sesi ini. Klik Kirim Ping Uji dulu.';
+        }
+        $hasil = [
+            'sukses' => false, 'waktu' => now()->toDateTimeString(),
+            'ringkasan' => 'BELUM TERDETEKSI: ' . $sebab,
+            'detail' => 'ping_terkirim: ' . ($kirim ? $kirim['id'] . ' @ ' . $kirim['at'] : '-') . "\n"
+                . 'ping_dieksekusi: ' . ($cfg['cron_ping_id'] ?? '-') . ' @ ' . ($cfg['cron_ping_at'] ?? '-') . "\n"
+                . 'worker_terakhir_jalan: ' . ($cfg['cron_last_run'] ?? '-') . "\n"
+                . 'jobs_antre: ' . $status['jobs'] . ' | jobs_gagal: ' . $status['gagal'],
+        ];
+
+        return redirect()->route('whatsapp.index', ['tab' => 'cron'])->withErrors(['msg' => 'Cron belum terdeteksi aktif.'])->with('wa_cron_hasil', $hasil);
+    }
+
+    private function statusCron(Request $request): array
+    {
+        $cfg = Pengaturan::ambil();
+        $data = [
+            'queue' => config('queue.default'),
+            'jobs' => 0, 'gagal' => 0, 'notif_antre' => 0,
+            'last_run' => $cfg['cron_last_run'] ?? null,
+            'ping_at' => $cfg['cron_ping_at'] ?? null,
+            'ping_id' => $cfg['cron_ping_id'] ?? null,
+            'ping_hasil' => $cfg['cron_ping_hasil'] ?? null,
+            'kirim' => session('cron_ping'),
+            'status' => 'unknown',
+        ];
+        try {
+            $data['jobs'] = DB::table('jobs')->count();
+            $data['gagal'] = DB::table('failed_jobs')->count();
+            $data['notif_antre'] = DB::table('tb_notifikasi_log')->where('status', 'antre')->count();
+        } catch (\Throwable $e) {
+        }
+        $kirim = $data['kirim'];
+        if ($kirim && $data['ping_id'] === $kirim['id']) {
+            $data['status'] = 'aktif';
+        } elseif ($data['last_run'] && \Carbon\Carbon::parse($data['last_run'])->diffInMinutes(now()) <= 10) {
+            $data['status'] = 'mungkin';
+        } elseif ($data['last_run']) {
+            $data['status'] = 'lama';
+        }
+
+        return $data;
     }
 }

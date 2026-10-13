@@ -7,6 +7,7 @@ use App\Models\Pengaturan;
 use App\Models\Siswa;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 
 class KirimNotifikasiAbsensi implements ShouldQueue
@@ -23,6 +24,7 @@ class KirimNotifikasiAbsensi implements ShouldQueue
         if (! $log || $log->status !== 'antre') {
             return;
         }
+        DB::table('tb_pengaturan')->updateOrInsert(['kunci' => 'cron_last_run'], ['nilai' => now()->toDateTimeString(), 'updated_at' => now(), 'created_at' => now()]);
 
         // Jaga jeda 10 detik antar notifikasi: bila masih ada antrean yang
         // lebih dulu dibuat dan belum terkirim, tunda lagi 10 detik.

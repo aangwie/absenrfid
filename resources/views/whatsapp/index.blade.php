@@ -7,7 +7,7 @@
 
 <div class="bg-slate-800/80 border border-slate-700 rounded-2xl p-5">
   <div class="flex items-center gap-1 bg-slate-900/80 p-1 rounded-xl border border-slate-700/60 overflow-x-auto text-xs font-semibold mb-5">
-    @foreach ([['konfigurasi', 'Konfigurasi'], ['uji', 'Uji Kirim'], ['log', 'Log Notifikasi']] as [$v, $label])
+    @foreach ([['konfigurasi', 'Konfigurasi'], ['uji', 'Uji Kirim'], ['log', 'Log Notifikasi'], ['cron', 'Tes Cron']] as [$v, $label])
     <a href="{{ route('whatsapp.index', ['tab' => $v]) }}" class="px-3 py-1.5 rounded-lg whitespace-nowrap {{ $tab === $v ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white' }}">{{ $label }}</a>
     @endforeach
   </div>
@@ -76,6 +76,67 @@
       <tbody class="divide-y divide-slate-700/60 text-slate-300">@forelse ($logs as $l)<tr class="hover:bg-slate-700/30 transition-colors"><td class="py-3 px-4 font-mono text-slate-400 whitespace-nowrap">{{ $l->created_at }}</td><td class="py-3 px-4"><div class="font-semibold text-white text-sm">{{ $l->siswa->nama ?? $l->nisn }}</div><div class="text-[11px] text-slate-400 font-mono">{{ $l->nisn }} • {{ $l->tanggal }}</div></td><td class="py-3 px-4 text-center">@if ($l->tipe === 'pulang')<span class="bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 px-2.5 py-1 rounded-full text-[11px] font-semibold">PULANG</span>@else<span class="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-1 rounded-full text-[11px] font-semibold">MASUK</span>@endif</td><td class="py-3 px-4 font-mono text-slate-200">{{ $l->nomor_tujuan ?? '-' }}</td><td class="py-3 px-4 text-center">@if ($l->status === 'terkirim')<span class="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-1 rounded-full text-[11px] font-semibold">Terkirim</span>@elseif ($l->status === 'antre')<span class="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2.5 py-1 rounded-full text-[11px] font-semibold">Antre</span>@else<span class="bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2.5 py-1 rounded-full text-[11px] font-semibold">Gagal</span>@endif</td><td class="py-3 px-4 text-center font-mono text-slate-400">{{ $l->http_code ?? '-' }}</td><td class="py-3 px-4 text-[11px] text-slate-400 max-w-xs"><span title="{{ $l->respons }}">{{ \Illuminate\Support\Str::limit($l->respons ?? '-', 120) }}</span></td></tr>@empty<tr><td colspan="7" class="py-8 text-center text-slate-500">Belum ada notifikasi.</td></tr>@endforelse</tbody>
     </table></div>
     <div class="mt-4 text-slate-300 text-sm">{{ $logs->links() }}</div>
+  </div>
+  @elseif ($tab === 'cron')
+  <div class="max-w-2xl">
+    <h2 class="text-base font-semibold text-white mb-1">Tes Cron Hosting</h2>
+    <p class="text-[11px] text-slate-500 mb-4">Pastikan cron yang memproses antrean WhatsApp benar-benar berjalan di hosting.</p>
+
+    <div class="rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 mb-4 flex items-center gap-2">
+      @if (($cron['status'] ?? 'unknown') === 'aktif')
+      <span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">CRON AKTIF</span>
+      <span class="text-xs text-slate-300">Ping uji sudah dieksekusi worker.</span>
+      @elseif (($cron['status'] ?? 'unknown') === 'mungkin')
+      <span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">WORKER JALAN</span>
+      <span class="text-xs text-slate-300">Ada worker jalan &lt; 10 menit lalu ({{ $cron['last_run'] }}), tapi ping uji sesi ini belum dieksekusi.</span>
+      @elseif (($cron['status'] ?? 'unknown') === 'lama')
+      <span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">TERAKHIR {{ $cron['last_run'] }}</span>
+      <span class="text-xs text-slate-300">Worker pernah jalan tapi sudah lama — cron mungkin mati.</span>
+      @else
+      <span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-slate-600/40 text-slate-300 border border-slate-600">BELUM TERDETEKSI</span>
+      <span class="text-xs text-slate-400">Belum ada worker tercatat. Kirim ping uji di bawah.</span>
+      @endif
+    </div>
+
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4 text-xs">
+      <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-3"><p class="text-slate-500">Queue driver</p><p class="font-mono font-bold text-white">{{ $cron['queue'] ?? '-' }}</p></div>
+      <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-3"><p class="text-slate-500">Jobs antre</p><p class="font-mono font-bold text-amber-300 text-base">{{ $cron['jobs'] ?? 0 }}</p></div>
+      <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-3"><p class="text-slate-500">Jobs gagal</p><p class="font-mono font-bold text-rose-300 text-base">{{ $cron['gagal'] ?? 0 }}</p></div>
+      <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-3"><p class="text-slate-500">Notifikasi antre</p><p class="font-mono font-bold text-sky-300 text-base">{{ $cron['notif_antre'] ?? 0 }}</p></div>
+    </div>
+
+    <div class="flex flex-col sm:flex-row gap-2 mb-4">
+      <form action="{{ route('whatsapp.ping') }}" method="POST" class="flex-1">@csrf
+        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-4 py-2 rounded-xl">Kirim Ping Uji</button>
+      </form>
+      <form action="{{ route('whatsapp.cek') }}" method="POST" class="flex-1">@csrf
+        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold px-4 py-2 rounded-xl">Cek Hasil</button>
+      </form>
+    </div>
+    <p class="text-[11px] text-slate-500 mb-4">Alur: Kirim Ping Uji → tunggu ±1 menit (satu siklus cron, JANGAN klik Jalankan Antrean dulu) → klik Cek Hasil/refresh. Ping hanya dieksekusi bila ada worker yang memproses antrean.</p>
+
+    @if (session('wa_cron_hasil'))
+    @php($hasil = session('wa_cron_hasil'))
+    <div class="rounded-xl border overflow-hidden {{ $hasil['sukses'] ? 'border-emerald-500/40' : 'border-rose-500/40' }}">
+      <div class="px-4 py-3 flex items-center gap-2 {{ $hasil['sukses'] ? 'bg-emerald-500/10' : 'bg-rose-500/10' }}">
+        <span class="text-[11px] font-bold px-2.5 py-1 rounded-full {{ $hasil['sukses'] ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-rose-500/20 text-rose-300 border border-rose-500/40' }}">{{ $hasil['sukses'] ? 'CRON AKTIF' : 'CRON BERMASALAH' }}</span>
+        <span class="text-xs text-slate-300">{{ $hasil['waktu'] ?? '' }}</span>
+      </div>
+      <div class="bg-slate-900/60 px-4 py-3 text-xs flex flex-col gap-2">
+        <div class="flex gap-2"><span class="text-slate-500 w-20 shrink-0">Keterangan</span><span class="text-slate-200">{{ $hasil['ringkasan'] ?? '-' }}</span></div>
+        <div>
+          <p class="text-slate-500 mb-1.5">Detail respons</p>
+          <pre class="text-[11px] font-mono text-slate-200 bg-slate-950 border border-slate-700 rounded-lg p-3 whitespace-pre-wrap break-all">{{ $hasil['detail'] ?? '-' }}</pre>
+        </div>
+      </div>
+    </div>
+    @endif
+
+    <div class="mt-4 bg-slate-900/60 border border-slate-700 rounded-xl p-4 text-xs flex flex-col gap-1.5">
+      <p class="font-semibold text-white">Perintah cron yang harus terpasang di hosting (tiap menit)</p>
+      <p class="font-mono text-slate-200 bg-slate-950 border border-slate-700 rounded-lg p-2.5 break-all">* * * * * cd /home/username/public_html && php artisan queue:work --stop-when-empty --max-time=50 &gt;/dev/null 2&gt;&amp;1</p>
+      <p class="text-slate-500">Sesuaikan path folder proyek. Hasil Cek di atas adalah bukti eksekusinya.</p>
+    </div>
   </div>
   @endif
 </div>

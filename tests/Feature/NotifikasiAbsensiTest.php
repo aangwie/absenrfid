@@ -91,6 +91,20 @@ class NotifikasiAbsensiTest extends TestCase
         }
     }
 
+    public function test_tab_tes_cron_ping_dan_cek(): void
+    {
+        $admin = \App\Models\User::factory()->create();
+        $this->actingAs($admin)->get(route('whatsapp.index', ['tab' => 'cron']))->assertOk();
+        // Queue sync di testing = worker seketika: ping langsung dieksekusi.
+        $this->actingAs($admin)->post(route('whatsapp.ping'))->assertRedirect(route('whatsapp.index', ['tab' => 'cron']));
+        $res = $this->actingAs($admin)->post(route('whatsapp.cek'));
+        $res->assertRedirect(route('whatsapp.index', ['tab' => 'cron']));
+        $hasil = session('wa_cron_hasil');
+        $this->assertNotNull($hasil);
+        $this->assertTrue($hasil['sukses']);
+        $this->assertStringContainsString('AKTIF', $hasil['ringkasan']);
+    }
+
     public function test_dokumentasi_semua_tab_bisa_dibuka(): void
     {
         $admin = \App\Models\User::factory()->create();
