@@ -44,6 +44,10 @@ class DashboardController extends Controller
             $abs->save();
             $out = ['ok' => true, 'type' => 'MASUK', 'nama' => $siswa->nama, 'jam' => $jam, 'status' => $abs->status_masuk];
         } elseif (! $abs->jam_pulang) {
+            if ($kat !== 'Pulang') {
+                $out = ['ok' => false, 'pesan' => 'Di luar jam pulang ('.$jam.'), tap pulang ditolak.'];
+                return $request->wantsJson() ? response()->json($out, 422) : back()->with('tap', $out);
+            }
             $abs->jam_pulang = $jam;
             $abs->status_pulang = 'Selesai';
             $abs->save();
@@ -55,16 +59,37 @@ class DashboardController extends Controller
         return $request->wantsJson() ? response()->json($out) : back()->with('tap', $out);
     }
 
-    public function index()
+    public function rekap()
     {
         $today = now()->toDateString();
+        $rows = Siswa::leftJoin('tb_absensi as a', function ($join) use ($today) {
+                $join->on('a.nisn', '=', 'tb_siswa.nisn')->whereDate('a.tanggal', $today);
+            })
+            ->leftJoin('tb_kelas as k', 'k.id', '=', 'tb_siswa.kelas_id')
+            ->select('tb_siswa.nama', 'tb_siswa.nisn', 'tb_siswa.rfid_tag', 'tb_siswa.gender', 'k.nama as kelas_nama', 'a.jam_masuk', 'a.jam_pulang', 'a.status_masuk', 'a.status_pulang')
+            ->orderBy('k.nama')->orderBy('tb_siswa.nama')->get();
+        $total = Siswa::count();
+        $masuk = $rows->whereNotNull('jam_masuk')->count();
+
+        return response()->json([
+            'total' => $total,
+            'masuk' => $masuk,
+            'pulang' => $rows->where('status_pulang', 'Selesai')->count(),
+            'terlambat' => $rows->where('status_masuk', 'Terlambat')->count(),
+            'belum' => $rows->whereNull('status_masuk')->count(),
+            'rows' => $rows,
+            'terakhir' => Absensi::with('siswa')->whereDate('tanggal', $today)->orderByDesc('updated_at')->limit(8)->get()->map(fn ($t) => ['nama' => $t->siswa->nama ?? $t->nisn, 'jam' => $t->jam_pulang ?? $t->jam_masuk, 'pulang' => (bool) $t->jam_pulang]),
+        ]);
+    }
+
+    public function index()
+    {
+        \App\Support\WaktuAbsensi::tandaiTanpaKeterangan();
+        $today = now()->toDateString();
+        $rentang = \App\Support\WaktuAbsensi::rentang();
+        $boleh = \App\Support\WaktuAbsensi::boleh(now()->format('H:i:s'));
 
         $totalSiswa = Siswa::count();
-
-        $masukHariIni = Absensi::whereDate('tanggal', $today)->whereNotNull('jam_masuk')->count();
-        $pulangHariIni = Absensi::whereDate('tanggal', $today)->where('status_pulang', 'Selesai')->count();
-        $terlambatHariIni = Absensi::whereDate('tanggal', $today)->where('status_masuk', 'Terlambat')->count();
-        $belumAbsen = max(0, $totalSiswa - $masukHariIni);
 
         // ponytail: query per-siswa tanpa N+1 berat OK untuk skala sekolah (<2rb). Upgrade ke join + paginate bila >10rb.
         $rekap = Siswa::leftJoin('tb_absensi as a', function ($join) use ($today) {
@@ -75,6 +100,12 @@ class DashboardController extends Controller
             ->orderBy('k.nama')
             ->orderBy('tb_siswa.nama')
             ->get();
+
+        $masukHariIni = Absensi::whereDate('tanggal', $today)->whereNotNull('jam_masuk')->count();
+        $pulangHariIni = Absensi::whereDate('tanggal', $today)->where('status_pulang', 'Selesai')->count();
+        $terlambatHariIni = Absensi::whereDate('tanggal', $today)->where('status_masuk', 'Terlambat')->count();
+        // Belum = benar-benar tanpa baris absensi (Izin/Sakit/Tanpa/Di Sekolah manual tak dihitung belum).
+        $belumAbsen = $rekap->whereNull('status_masuk')->count();
 
         $perKelas = DB::table('tb_kelas as k')
             ->leftJoin('tb_siswa as s', 's.kelas_id', '=', 'k.id')
@@ -90,7 +121,8 @@ class DashboardController extends Controller
 
         return view('dashboard', compact(
             'totalSiswa', 'masukHariIni', 'pulangHariIni',
-            'terlambatHariIni', 'belumAbsen', 'rekap', 'perKelas', 'terakhirTap', 'today'
+            'terlambatHariIni', 'belumAbsen', 'rekap', 'perKelas', 'terakhirTap', 'today',
+            'rentang', 'boleh'
         ));
     }
 }

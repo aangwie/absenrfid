@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Absensi;
+use App\Models\Siswa;
 use Illuminate\Http\Request;
 use ZipArchive;
 
@@ -12,9 +13,16 @@ class LaporanController extends Controller
     {
         [$mode, $judul, $q] = $this->filterQuery($request);
         $rows = $q->orderBy('tanggal')->orderBy('jam_masuk')->paginate(15)->withQueryString();
+        // ponytail: belum-absen hanya mode harian (1 query). Tambah periode/bulanan bila diminta.
+        $belum = collect();
+        if ($mode === 'harian') {
+            $t = $request->date('tanggal')?->toDateString() ?? now()->toDateString();
+            $ada = Absensi::whereDate('tanggal', $t)->pluck('nisn')->all();
+            $belum = Siswa::with('kelas')->when($ada, fn ($q2) => $q2->whereNotIn('nisn', $ada))->orderBy('nama')->get();
+        }
 
         return view('laporan.index', [
-            'rows' => $rows, 'mode' => $mode, 'judul' => $judul,
+            'rows' => $rows, 'mode' => $mode, 'judul' => $judul, 'belum' => $belum,
             'tanggal' => $request->input('tanggal', now()->toDateString()),
             'dari' => $request->input('dari', now()->toDateString()),
             'sampai' => $request->input('sampai', now()->toDateString()),
@@ -65,12 +73,57 @@ class LaporanController extends Controller
     public function perbarui(Request $request, Absensi $absen)
     {
         $data = $request->validate([
-            'status_masuk' => ['required', 'in:Sakit,Ijin'],
+            'status_masuk' => ['required', 'in:Di Sekolah,Izin,Sakit,Tanpa Keterangan,Ijin'],
         ]);
-        $absen->status_masuk = $data['status_masuk'];
+        // Normalisasi ejaan lama Ijin -> Izin.
+        $st = $data['status_masuk'] === 'Ijin' ? 'Izin' : $data['status_masuk'];
+        if ($st === 'Di Sekolah') {
+            // Hadir manual: pastikan jam_masuk ada agar rekap hitung masuk.
+            if (! $absen->jam_masuk) {
+                $absen->jam_masuk = now()->format('H:i:s');
+            }
+            $absen->status_masuk = 'Di Sekolah';
+            if (! $absen->jam_pulang) {
+                $absen->status_pulang = 'Belum';
+            }
+        } else {
+            // Izin/Sakit/Tanpa Keterangan: nolkan jam agar tak kehitung masuk.
+            $absen->jam_masuk = null;
+            $absen->jam_pulang = null;
+            $absen->status_masuk = $st;
+            $absen->status_pulang = 'Belum';
+        }
         $absen->save();
 
-        return redirect()->route('laporan.index', request()->only(['mode', 'tanggal', 'dari', 'sampai', 'bulan']))->with('ok', 'Status diubah jadi ' . $data['status_masuk'] . '.');
+        return redirect()->route('laporan.index', request()->only(['mode', 'tanggal', 'dari', 'sampai', 'bulan']))->with('ok', 'Status diubah jadi ' . $st . '.');
+    }
+
+    public function tandai(Request $request)
+    {
+        $data = $request->validate([
+            'nisn' => ['required', 'exists:tb_siswa,nisn'],
+            'tanggal' => ['required', 'date'],
+            'status_masuk' => ['required', 'in:Di Sekolah,Izin,Sakit,Tanpa Keterangan,Ijin'],
+        ]);
+        $st = $data['status_masuk'] === 'Ijin' ? 'Izin' : $data['status_masuk'];
+        $absen = Absensi::firstOrNew(['nisn' => $data['nisn'], 'tanggal' => $data['tanggal']]);
+        if ($st === 'Di Sekolah') {
+            if (! $absen->jam_masuk) {
+                $absen->jam_masuk = now()->format('H:i:s');
+            }
+            $absen->status_masuk = 'Di Sekolah';
+            if (! $absen->jam_pulang) {
+                $absen->status_pulang = 'Belum';
+            }
+        } else {
+            $absen->jam_masuk = null;
+            $absen->jam_pulang = null;
+            $absen->status_masuk = $st;
+            $absen->status_pulang = 'Belum';
+        }
+        $absen->save();
+
+        return redirect()->route('laporan.index', ['mode' => 'harian', 'tanggal' => $data['tanggal']])->with('ok', 'Status diubah jadi ' . $st . '.');
     }
 
     public function ekspor(Request $request)

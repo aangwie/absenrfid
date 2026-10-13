@@ -4,6 +4,8 @@
 <div id="kios-root" class="min-h-screen p-3 sm:p-6 flex flex-col gap-6"></div>
 <script>
     window.__SISWA__ = @json($siswas);
+    window.__RENTANG__ = @json($rentang ?? []);
+    window.__BOLEH_AWAL__ = {{ ($boleh ?? true) ? 'true' : 'false' }};
 </script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -16,6 +18,9 @@
         useRef
     } = React;
     const nowStr = () => new Date().toTimeString().split(' ')[0];
+    const R = window.__RENTANG__ || {};
+    const dalam = (jam, mulai, selesai) => { const j = (jam || '').slice(0, 5); return mulai && selesai && j >= mulai && j <= selesai; };
+    const bolehJam = (jam) => dalam(jam, R.masuk_mulai, R.masuk_selesai) || dalam(jam, R.terlambat_mulai, R.terlambat_selesai) || dalam(jam, R.pulang_mulai, R.pulang_selesai);
 
     function App() {
         const [students, setStudents] = useState(window.__SISWA__ || []);
@@ -26,13 +31,16 @@
         const [page, setPage] = useState(1);
         const perPage = 5;
         const ref = useRef(null);
+        const jamNow = clock.toTimeString().split(' ')[0];
+        const boleh = bolehJam(jamNow);
+        const jamBuka = (R.masuk_mulai || '06:30') + '–' + (R.pulang_selesai || '14:30');
         useEffect(() => {
             const t = setInterval(() => setClock(new Date()), 1000);
             return () => clearInterval(t);
         }, []);
         useEffect(() => {
             const f = setInterval(() => {
-                if (document.activeElement !== ref.current && ref.current) ref.current.focus();
+                if (ref.current && document.activeElement !== ref.current && !ref.current.disabled) ref.current.focus();
             }, 1500);
             return () => clearInterval(f);
         }, []);
@@ -40,8 +48,13 @@
         function tap(tagRaw) {
             const tag = (tagRaw || '').trim();
             if (!tag) return;
-            const i = students.findIndex(s => s.rfid_tag === tag || s.nisn === tag);
             const jam = nowStr();
+            if (!bolehJam(jam)) {
+                setScan({ ok: false, pesan: 'Di luar jam absensi (' + jam + '). Jam buka ' + (R.masuk_mulai || '') + '-' + (R.pulang_selesai || '') + '.' });
+                setRfid('');
+                return;
+            }
+            const i = students.findIndex(s => s.rfid_tag === tag || s.nisn === tag);
             if (i === -1) {
                 setScan({
                     ok: false,
@@ -53,9 +66,10 @@
             const s = students[i],
                 next = students.slice();
             if (!s.jam_masuk) {
+                const telat = dalam(jam, R.terlambat_mulai, R.terlambat_selesai);
                 next[i] = Object.assign({}, s, {
                     jam_masuk: jam,
-                    status_masuk: jam > '07:00:00' ? 'Terlambat' : 'Tepat Waktu'
+                    status_masuk: telat ? 'Terlambat' : 'Tepat Waktu'
                 });
                 setScan({
                     ok: true,
@@ -84,10 +98,11 @@
                 setRfid('');
                 return;
             }
-            fetch('/tap',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-TOKEN':(document.querySelector('meta[name="csrf-token"]')||{}).content||'','Accept':'application/json'},body:JSON.stringify({tag})}).catch(function(){});
+            const prev = students;
             // ponytail: kios optimis lokal, DB sinkron via /tap; tambah retry queue bila offline.
             setStudents(next);
             setRfid('');
+            fetch('/tap', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || '', 'Accept': 'application/json' }, body: JSON.stringify({ tag }) }).then(function (r) { return r.json(); }).then(function (d) { if (!d || !d.ok) { setStudents(prev); setScan({ ok: false, pesan: (d && d.pesan) || 'Tap ditolak server.' }); } }).catch(function () {});
         }
         const masuk = students.filter(s => s.jam_masuk).length;
         const pulang = students.filter(s => s.jam_pulang).length;
@@ -113,11 +128,12 @@
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="lg:col-span-2 bg-slate-800 border border-slate-700 rounded-2xl p-5">
         <h2 className="font-semibold text-white mb-1">Area Tap Reader RFID USB</h2>
-        <p className="text-xs text-slate-400 mb-3">Tempelkan kartu pada reader USB — ID terbaca otomatis sebagai keyboard + Enter.</p>
+        <p className="text-xs text-slate-400 mb-3">Tempelkan kartu pada reader USB — ID terbaca otomatis sebagai keyboard + Enter. Jam buka ${jamBuka}.</p>
+        ${boleh ? null : html`<div className="bg-rose-500/15 border border-rose-500/40 text-rose-200 text-xs rounded-xl px-4 py-3 mb-3">Di luar jam absensi (${jamNow}). Input dikunci — jam buka ${jamBuka}.</div>`}
         <form onSubmit=${e => { e.preventDefault(); tap(rfid); }} className="relative">
-          <input ref=${ref} value=${rfid} onInput=${e => setRfid(e.target.value)} placeholder="Tempelkan kartu RFID di sini..."
-            className="w-full bg-slate-900/90 border-2 border-indigo-500/50 rounded-xl px-4 py-3.5 text-white font-mono focus:outline-none" />
-          <button className="absolute right-2 top-1/2 -translate-y-1/2 bg-indigo-600 text-white text-xs font-semibold px-4 py-2 rounded-lg">Proses Tap</button>
+          <input ref=${ref} value=${rfid} onInput=${e => setRfid(e.target.value)} placeholder=${boleh ? 'Tempelkan kartu RFID di sini...' : 'Di luar jam absensi — input dikunci...'} disabled=${!boleh}
+            className=${'w-full bg-slate-900/90 border-2 rounded-xl px-4 py-3.5 text-white font-mono focus:outline-none ' + (boleh ? 'border-indigo-500/50' : 'border-slate-700 opacity-50 cursor-not-allowed')} />
+          <button disabled=${!boleh} className="absolute right-2 top-1/2 -translate-y-1/2 bg-indigo-600 text-white text-xs font-semibold px-4 py-2 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed">Proses Tap</button>
         </form>
       </div>
       <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 text-center">
@@ -134,7 +150,7 @@
           className="w-full sm:w-64 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500" />
       </div>
       <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="text-slate-400 border-b border-slate-700"><th className="text-left py-2 px-2">Nama / NISN</th><th className="text-left py-2 px-2">Kelas</th><th className="text-center py-2 px-2">Masuk</th><th className="text-center py-2 px-2">Pulang</th><th className="text-center py-2 px-2">Status</th></tr></thead>
-      <tbody>${rows.length ? rows.map(s => html`<tr key=${s.nisn} className="border-b border-slate-700/50"><td className="py-2.5 px-2"><div className="font-semibold text-white">${s.nama}</div><div className="font-mono text-slate-500 text-[11px]">${s.nisn} • ${s.rfid_tag}</div></td><td className="py-2.5 px-2 text-slate-300">${s.kelas}</td><td className="py-2.5 px-2 text-center font-mono text-emerald-300">${s.jam_masuk || '-'}</td><td className="py-2.5 px-2 text-center font-mono text-indigo-300">${s.jam_pulang || '-'}</td><td className="py-2.5 px-2 text-center">${s.jam_pulang ? html`<span className="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full text-[11px]">Pulang</span>` : s.jam_masuk ? html`<span className="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full text-[11px]">Di Sekolah</span>` : html`<span className="bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded-full text-[11px]">Belum Absen</span>`}</td></tr>`) : html`<tr><td colSpan="5" className="py-8 text-center text-slate-500">Tidak ada data cocok.</td></tr>`}</tbody></table></div>
+      <tbody>${rows.length ? rows.map(s => { const st = s.jam_pulang ? html`<span className="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full text-[11px]">Pulang</span>` : s.jam_masuk ? html`<span className="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full text-[11px]">Di Sekolah</span>` : (s.status_masuk === 'Sakit' || s.status_masuk === 'Izin' || s.status_masuk === 'Ijin') ? html`<span className=\"bg-sky-500/20 text-sky-300 border border-sky-500/40 px-2 py-0.5 rounded-full text-[11px]\">${s.status_masuk}</span>` : s.status_masuk === 'Di Sekolah' ? html`<span className=\"bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full text-[11px]\">Di Sekolah</span>` : s.status_masuk === 'Tanpa Keterangan' ? html`<span className="bg-slate-600/40 text-slate-300 border border-slate-600 px-2 py-0.5 rounded-full text-[11px]">Tanpa Keterangan</span>` : html`<span className="bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded-full text-[11px]">Belum Absen</span>`; return html`<tr key=${s.nisn} className="border-b border-slate-700/50"><td className="py-2.5 px-2"><div className="font-semibold text-white">${s.nama}</div><div className="font-mono text-slate-500 text-[11px]">${s.nisn} • ${s.rfid_tag}</div></td><td className="py-2.5 px-2 text-slate-300">${s.kelas}</td><td className="py-2.5 px-2 text-center font-mono text-emerald-300">${s.jam_masuk || '-'}</td><td className="py-2.5 px-2 text-center font-mono text-indigo-300">${s.jam_pulang || '-'}</td><td className="py-2.5 px-2 text-center">${st}</td></tr>`; }) : html`<tr><td colSpan="5" className="py-8 text-center text-slate-500">Tidak ada data cocok.</td></tr>`}</tbody></table></div>
       <div className="flex items-center justify-between mt-3 text-xs text-slate-400">
         <span>Menampilkan ${rows.length} dari ${filtered.length} data • Hal ${safePage}/${totalPages}</span>
         <div className="flex gap-1">

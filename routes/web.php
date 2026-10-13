@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Route;
 Route::post('/tap', [DashboardController::class, 'tap'])->name('tap');
 
 Route::get('/', function () {
+    \App\Support\WaktuAbsensi::tandaiTanpaKeterangan();
     $today = now()->toDateString();
     $siswas = \App\Models\Siswa::leftJoin('tb_absensi as a', function ($join) use ($today) {
             $join->on('a.nisn', '=', 'tb_siswa.nisn')->whereDate('a.tanggal', $today);
@@ -20,7 +21,10 @@ Route::get('/', function () {
         ->select('tb_siswa.nisn', 'tb_siswa.rfid_tag', 'tb_siswa.nama', 'k.nama as kelas', 'tb_siswa.gender', 'a.jam_masuk', 'a.jam_pulang', 'a.status_masuk', 'a.status_pulang')
         ->orderBy('k.nama')->orderBy('tb_siswa.nama')->get();
 
-    return view('home', compact('siswas'));
+    $rentang = \App\Support\WaktuAbsensi::rentang();
+    $boleh = \App\Support\WaktuAbsensi::boleh(now()->format('H:i:s'));
+
+    return view('home', compact('siswas', 'rentang', 'boleh'));
 })->name('home');
 
 Route::middleware('guest')->group(function () {
@@ -30,6 +34,7 @@ Route::middleware('guest')->group(function () {
 
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/dashboard/rekap', [DashboardController::class, 'rekap'])->name('dashboard.rekap');
     Route::get('/siswa', [SiswaController::class, 'index'])->name('siswa.index');
     Route::get('/siswa/create', [SiswaController::class, 'create'])->name('siswa.create');
     Route::post('/siswa', [SiswaController::class, 'store'])->name('siswa.store');
@@ -44,6 +49,7 @@ Route::middleware('auth')->group(function () {
     Route::put('/kelas/{kelas}', [KelasController::class, 'update'])->name('kelas.update');
     Route::delete('/kelas/{kelas}', [KelasController::class, 'destroy'])->name('kelas.destroy');
     Route::get('/laporan', [LaporanController::class, 'index'])->name('laporan.index');
+    Route::post('/laporan/tandai', [LaporanController::class, 'tandai'])->name('laporan.tandai');
     Route::get('/laporan/ekspor', [LaporanController::class, 'ekspor'])->name('laporan.ekspor');
     Route::get('/laporan/{absen}/edit', [LaporanController::class, 'edit'])->name('laporan.edit');
     Route::put('/laporan/{absen}', [LaporanController::class, 'perbarui'])->name('laporan.perbarui');

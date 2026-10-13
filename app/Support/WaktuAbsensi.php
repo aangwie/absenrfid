@@ -39,4 +39,45 @@ class WaktuAbsensi
         }
         return 'Tanpa Keterangan';
     }
+
+    public static function boleh(string $jam): bool
+    {
+        return static::kategori($jam) !== 'Tanpa Keterangan';
+    }
+
+    // Tutup = lewat batas pulang_selesai hari ini.
+    public static function tutup(?string $jam = null): bool
+    {
+        $jam ??= now()->format('H:i:s');
+        $r = static::rentang();
+
+        return substr($jam, 0, 5) > $r['pulang_selesai'];
+    }
+
+    // Siswa tanpa baris absensi di $tanggal -> otomatis Tanpa Keterangan.
+    // Hari ini hanya jalan setelah jam tutup agar tap susulan tetap bisa masuk.
+    // ponytail: loop insert per-NISN, pindah ke insert batch bila >10rb siswa.
+    public static function tandaiTanpaKeterangan(?string $tanggal = null): int
+    {
+        try {
+            $tanggal ??= now()->toDateString();
+            if ($tanggal >= now()->toDateString() && ! static::tutup()) {
+                return 0;
+            }
+            $ada = \App\Models\Absensi::whereDate('tanggal', $tanggal)->pluck('nisn')->all();
+            $kurang = \App\Models\Siswa::when($ada, fn ($q) => $q->whereNotIn('nisn', $ada))->pluck('nisn');
+            $n = 0;
+            foreach ($kurang as $nisn) {
+                \App\Models\Absensi::firstOrCreate(['nisn' => $nisn, 'tanggal' => $tanggal], [
+                    'jam_masuk' => null, 'jam_pulang' => null,
+                    'status_masuk' => 'Tanpa Keterangan', 'status_pulang' => 'Belum',
+                ]);
+                $n++;
+            }
+
+            return $n;
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
 }
