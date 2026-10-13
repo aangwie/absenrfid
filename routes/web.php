@@ -7,6 +7,7 @@ use App\Http\Controllers\LaporanController;
 use App\Http\Controllers\PengaturanController;
 use App\Http\Controllers\ProfilController;
 use App\Http\Controllers\SiswaController;
+use App\Http\Controllers\WhatsappController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/tap', [DashboardController::class, 'tap'])->name('tap');
@@ -65,6 +66,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/pengaturan/rawat', [PengaturanController::class, 'rawat'])->name('pengaturan.rawat');
     Route::get('/pengaturan/backup', [PengaturanController::class, 'unduhBackup'])->name('pengaturan.backup');
     Route::post('/pengaturan/impor', [PengaturanController::class, 'imporDb'])->name('pengaturan.impor');
+    Route::get('/whatsapp', [WhatsappController::class, 'index'])->name('whatsapp.index');
+    Route::post('/whatsapp/simpan', [WhatsappController::class, 'simpan'])->name('whatsapp.simpan');
+    Route::post('/whatsapp/uji', [WhatsappController::class, 'uji'])->name('whatsapp.uji');
     Route::get('/profil', [ProfilController::class, 'show'])->name('profil');
     Route::put('/profil', [ProfilController::class, 'update'])->name('profil.update');
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
