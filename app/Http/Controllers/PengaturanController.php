@@ -28,31 +28,15 @@ class PengaturanController extends Controller
         return view('pengaturan.index', ['tab' => $tab, 'p' => $p, 'log' => session('log')]);
     }
 
-    public function simpanWaktu(Request $request)
-    {
-        $data = $request->validate([
-            'masuk_mulai' => ['required', 'date_format:H:i'],
-            'masuk_selesai' => ['required', 'date_format:H:i'],
-            'terlambat_mulai' => ['required', 'date_format:H:i'],
-            'terlambat_selesai' => ['required', 'date_format:H:i'],
-            'pulang_mulai' => ['required', 'date_format:H:i'],
-            'pulang_selesai' => ['required', 'date_format:H:i'],
-        ], ['*.date_format' => 'Format jam HH:MM.']);
-        foreach ($data as $k => $v) {
-            DB::table('tb_pengaturan')->updateOrInsert(['kunci' => $k], ['nilai' => $v, 'updated_at' => now(), 'created_at' => now()]);
-        }
-
-        return back()->with('ok', 'Jam kategori tersimpan.');
-    }
-
     public function simpanInstitusi(Request $request)
     {
         $data = $request->validate([
             'nama_institusi' => ['required', 'string', 'max:255'],
             'alamat' => ['required', 'string', 'max:500'],
             'no_hp' => ['required', 'string', 'max:20'],
-            'logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:400'],
+            'logo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:400'],
         ], ['*.required' => 'Lengkapi Nama Institusi, Alamat, dan Nomor HP.']);
+
         foreach (['nama_institusi' => $data['nama_institusi'], 'alamat' => $data['alamat'], 'no_hp' => $data['no_hp']] as $k => $v) {
             DB::table('tb_pengaturan')->updateOrInsert(['kunci' => $k], ['nilai' => trim($v), 'updated_at' => now(), 'created_at' => now()]);
         }
@@ -67,45 +51,74 @@ class PengaturanController extends Controller
         return redirect()->route('pengaturan.index', ['tab' => 'institusi'])->with('ok', 'Data institusi tersimpan.');
     }
 
-    public function updateApp(Request $request)
+    public function simpanWaktu(Request $request)
+    {
+        $data = $request->validate([
+            'masuk_mulai' => ['required', 'date_format:H:i'],
+            'masuk_selesai' => ['required', 'date_format:H:i'],
+            'terlambat_mulai' => ['required', 'date_format:H:i'],
+            'terlambat_selesai' => ['required', 'date_format:H:i'],
+            'pulang_mulai' => ['required', 'date_format:H:i'],
+            'pulang_selesai' => ['required', 'date_format:H:i'],
+        ], ['*.required' => 'Format jam HH:MM.', '*.date_format' => 'Format jam HH:MM.']);
+
+        foreach ($data as $k => $v) {
+            DB::table('tb_pengaturan')->updateOrInsert(['kunci' => $k], ['nilai' => $v, 'updated_at' => now(), 'created_at' => now()]);
+        }
+
+        return redirect()->route('pengaturan.index', ['tab' => 'waktu'])->with('ok', 'Waktu absensi tersimpan.');
+    }
+
+    public function simpanUpdateConfig(Request $request)
     {
         $data = $request->validate([
             'github_repo' => ['required', 'string', 'max:255'],
             'github_branch' => ['nullable', 'string', 'max:100'],
             'github_token' => ['required', 'string', 'max:255'],
         ]);
-        $branch = trim($data['github_branch'] ?? '') ?: 'main';
+
+        $branch = trim($data['github_branch']) ?: 'main';
         $repo = trim($data['github_repo']);
         if (preg_match('~github\.com[/:]([^/]+/[^/]+?)(\.git)?/?$~i', $repo, $m)) {
             $repo = $m[1];
         }
-        $token = trim($data['github_token']);
-        foreach (['github_repo' => trim($repo, '/'), 'github_branch' => $branch, 'github_token' => $token] as $k => $v) {
+
+        foreach (['github_repo' => $repo, 'github_branch' => $branch, 'github_token' => trim($data['github_token'])] as $k => $v) {
             DB::table('tb_pengaturan')->updateOrInsert(['kunci' => $k], ['nilai' => $v, 'updated_at' => now(), 'created_at' => now()]);
         }
 
-        $mask = fn ($s) => str_replace($token, '***', $s);
-        $log = ['$ repo: ' . $repo . ' | branch: ' . $branch];
-        $run = function ($cmd) use (&$log, $mask) {
-            $log[] = '$ ' . $mask(is_array($cmd) ? implode(' ', $cmd) : $cmd);
-            $r = Process::path(base_path())->timeout(120)->run($cmd);
-            $out = trim($r->output() . "\n" . $r->errorOutput());
-            $log[] = $mask($out === '' ? '(tanpa output)' : $out);
-            return $r->successful();
-        };
+        return redirect()->route('pengaturan.index', ['tab' => 'update'])->with('ok', 'Konfigurasi update tersimpan.');
+    }
 
-        $isRepo = Process::path(base_path())->run('git rev-parse --is-inside-work-tree')->successful();
-        if (! $isRepo) {
-            $run(['git', 'init', '-b', $branch]);
+    public function updateApp(Request $request)
+    {
+        $p = Pengaturan::ambil();
+        $repo = $p['github_repo'] ?? '';
+        $branch = $p['github_branch'] ?? 'main';
+        $token = $p['github_token'] ?? '';
+
+        if (! $repo || ! $token) {
+            return redirect()->route('pengaturan.index', ['tab' => 'update'])->withErrors(['msg' => 'Konfigurasi GitHub (repo/token) belum disimpan.']);
         }
-        $run(['git', 'remote', 'remove', 'origin']);
-        $run(['git', 'remote', 'add', 'origin', "https://x-access-token:{$token}@github.com/{$repo}.git"]);
-        $ok = $run(['git', 'fetch', 'origin', $branch, '--depth=1', '--prune']);
-        if ($ok) {
-            $ok = $run(['git', 'reset', '--hard', "origin/{$branch}"]);
+
+        $log = [];
+        try {
+            $log[] = '$ git fetch origin';
+            $fetch = Process::run(['git', 'fetch', 'origin'], base_path(), timeout: 60);
+            $log[] = $fetch->output();
+
+            $log[] = '$ git reset --hard origin/' . $branch;
+            $reset = Process::run(['git', 'reset', '--hard', 'origin/' . $branch], base_path(), timeout: 60);
+            $log[] = $reset->output();
+
+            $log[] = '$ git remote set-url origin https://github.com/' . $repo . '.git';
+            Process::run(['git', 'remote', 'set-url', 'origin', "https://github.com/{$repo}.git"], base_path(), timeout: 30);
+
+            $ok = $reset->successful();
+            $log[] = $ok ? 'SELESAI: kode diperbarui.' : 'GAGAL: cek repo/branch/token.';
+        } catch (\Throwable $e) {
+            $log[] = 'GAGAL: ' . $e->getMessage();
         }
-        $run(['git', 'remote', 'set-url', 'origin', "https://github.com/{$repo}.git"]);
-        $log[] = $ok ? 'SELESAI: kode diperbarui.' : 'GAGAL: cek repo/branch/token.';
 
         return redirect()->route('pengaturan.index', ['tab' => 'update'])->with('log', implode("\n", $log));
     }
@@ -136,15 +149,14 @@ class PengaturanController extends Controller
 
     public function unduhBackup()
     {
-        // ponytail: dump via PDO per tabel, tanpa mysqldump. Pindah ke mysqldump bila DB besar.
         try {
             $tables = collect(DB::select('SHOW TABLES'))->map(fn ($r) => array_values((array) $r)[0])->all();
-            $sql = "-- backup absenrfid " . now()->toDateTimeString() . "\nSET FOREIGN_KEY_CHECKS=0;\n";
+            $sql = '-- backup absenrfid ' . now()->toDateTimeString() . "\nSET FOREIGN_KEY_CHECKS=0;\n";
             foreach ($tables as $t) {
-                $c = DB::selectOne("SHOW CREATE TABLE `$t`");
-                $sql .= "DROP TABLE IF EXISTS `$t`;\n" . array_values((array) $c)[1] . ";\n";
+                $create = DB::selectOne("SHOW CREATE TABLE `$t`");
+                $sql .= "DROP TABLE IF EXISTS `$t`;\n" . $create->{'Create Table'} . ";\n\n";
                 foreach (DB::table($t)->orderBy(DB::raw('1'))->lazy(500) as $row) {
-                    $vals = collect((array) $row)->map(fn ($v) => is_null($v) ? 'NULL' : DB::getPdo()->quote((string) $v))->implode(',');
+                    $vals = collect($row)->map(fn ($v) => is_null($v) ? 'NULL' : DB::getPdo()->quote((string) $v))->implode(',');
                     $sql .= "INSERT INTO `$t` VALUES ($vals);\n";
                 }
             }
@@ -169,15 +181,10 @@ class PengaturanController extends Controller
                 DB::transaction(fn () => array_map(fn ($s) => DB::unprepared($s), $batch));
             }
             DB::unprepared('SET FOREIGN_KEY_CHECKS=1;');
-
-            return redirect()->route('pengaturan.index', ['tab' => 'impor'])->with('ok', 'Import DB selesai: ' . count($stmts) . ' query.');
+            return redirect()->route('pengaturan.index', ['tab' => 'backup'])->with('ok', 'Import database selesai.');
         } catch (\Throwable $e) {
-            try {
-                DB::unprepared('SET FOREIGN_KEY_CHECKS=1;');
-            } catch (\Throwable $t) {
-            }
-
-            return redirect()->route('pengaturan.index', ['tab' => 'impor'])->withErrors(['msg' => 'Import gagal: ' . $e->getMessage()]);
+            DB::unprepared('SET FOREIGN_KEY_CHECKS=1;');
+            return redirect()->route('pengaturan.index', ['tab' => 'backup'])->withErrors(['msg' => 'Import gagal: ' . $e->getMessage()]);
         }
     }
 }

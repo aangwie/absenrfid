@@ -24,6 +24,10 @@ Route::get('/', function () {
     $rentang = \App\Support\WaktuAbsensi::rentang();
     $boleh = \App\Support\WaktuAbsensi::boleh(now()->format('H:i:s'));
 
+    if (request()->wantsJson()) {
+        return response()->json($siswas);
+    }
+
     return view('home', compact('siswas', 'rentang', 'boleh'));
 })->name('home');
 
@@ -56,6 +60,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/pengaturan', [PengaturanController::class, 'index'])->name('pengaturan.index');
     Route::post('/pengaturan/institusi', [PengaturanController::class, 'simpanInstitusi'])->name('pengaturan.institusi');
     Route::post('/pengaturan/waktu', [PengaturanController::class, 'simpanWaktu'])->name('pengaturan.waktu');
+    Route::post('/pengaturan/update-config', [PengaturanController::class, 'simpanUpdateConfig'])->name('pengaturan.update-config');
     Route::post('/pengaturan/update', [PengaturanController::class, 'updateApp'])->name('pengaturan.update-app');
     Route::post('/pengaturan/rawat', [PengaturanController::class, 'rawat'])->name('pengaturan.rawat');
     Route::get('/pengaturan/backup', [PengaturanController::class, 'unduhBackup'])->name('pengaturan.backup');
