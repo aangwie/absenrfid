@@ -70,10 +70,10 @@ class WhatsappController extends Controller
                 ->asForm()
                 ->timeout(30)
                 ->post($url, [
+                    'nomor_pengirim' => $sender,
                     'api_key' => $apiKey,
-                    'sender' => $sender,
-                    'number' => $tujuan,
-                    'message' => $data['pesan'],
+                    'nomor_penerima' => $tujuan,
+                    'pesan' => $data['pesan'],
                 ]);
 
             $body = (string) $res->body();
