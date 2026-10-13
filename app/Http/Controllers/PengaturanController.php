@@ -21,7 +21,7 @@ class PengaturanController extends Controller
             'masuk_mulai' => '06:30', 'masuk_selesai' => '07:30',
             'terlambat_mulai' => '07:31', 'terlambat_selesai' => '13:29',
             'pulang_mulai' => '13:30', 'pulang_selesai' => '14:30',
-            'github_repo' => '', 'github_branch' => 'main', 'logo_sekolah' => '',
+            'github_repo' => '', 'github_branch' => 'main', 'github_token' => '', 'logo_sekolah' => '',
         ];
         $p = array_merge($def, Pengaturan::ambil());
 
@@ -80,7 +80,7 @@ class PengaturanController extends Controller
             $repo = $m[1];
         }
         $token = trim($data['github_token']);
-        foreach (['github_repo' => trim($repo, '/'), 'github_branch' => $branch] as $k => $v) {
+        foreach (['github_repo' => trim($repo, '/'), 'github_branch' => $branch, 'github_token' => $token] as $k => $v) {
             DB::table('tb_pengaturan')->updateOrInsert(['kunci' => $k], ['nilai' => $v, 'updated_at' => now(), 'created_at' => now()]);
         }
 

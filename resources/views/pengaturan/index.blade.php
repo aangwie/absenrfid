@@ -45,7 +45,7 @@
       <div><label class="block text-xs text-slate-300 mb-1">Branch</label><input name="github_branch" value="{{ $p['github_branch'] }}" placeholder="main" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-white"></div>
       <div><label class="block text-xs text-slate-300 mb-1">Token (github_pat_...)</label><input type="password" name="github_token" required autocomplete="off" placeholder="github_pat_..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-white font-mono"></div>
     </div>
-    <p class="text-[11px] text-slate-500">Token hanya dipakai saat proses ini, tidak disimpan. Di log tampil sebagai ***.</p>
+    <p class="text-[11px] text-slate-500">Token disimpan di database. Di log tampil sebagai ***.</p>
     <button class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2.5 rounded-xl w-fit">Perbarui dari GitHub</button>
   </form>
   @if ($log)<div class="mt-4"><p class="text-xs text-slate-300 font-semibold mb-1">Log Terminal</p><pre class="bg-black/70 border border-slate-700 rounded-xl p-3 text-[11px] font-mono text-emerald-200 whitespace-pre-wrap max-h-80 overflow-auto">{{ $log }}</pre></div>@endif

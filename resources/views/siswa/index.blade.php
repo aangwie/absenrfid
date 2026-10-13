@@ -49,10 +49,10 @@
   })();
   </script>
   <p class="text-[11px] text-slate-500 mb-4">Kolom template: NISN | RFID_TAG | NAMA | KELAS | GENDER (L/P). NISN dobel = update.</p>
-  <form method="GET" class="flex flex-col sm:flex-row gap-2 mb-4">
+  <!--form method="GET" class="flex flex-col sm:flex-row gap-2 mb-4">
     <input name="q" value="{{ request('q') }}" placeholder="Cari nama / NISN / RFID / kelas..." class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500">
     <button class="bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold px-4 py-2 rounded-xl">Cari</button>
-  </form>
+  </form-->
   <form method="GET" class="flex flex-col sm:flex-row gap-2 mb-4">
     <input name="q" value="{{ request('q') }}" placeholder="Cari nama / NISN / RFID / kelas..." class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500">
     <button class="bg-slate-700 hover:bg-indigo-600 text-white text-sm font-semibold px-4 py-2 rounded-xl">Cari</button>
