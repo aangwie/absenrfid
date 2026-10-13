@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\NotifikasiLog;
 use App\Models\Pengaturan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -12,13 +13,16 @@ class WhatsappController extends Controller
     public function index(Request $request)
     {
         $tab = $request->get('tab', 'konfigurasi');
-        if (! in_array($tab, ['konfigurasi', 'uji'])) {
+        if (! in_array($tab, ['konfigurasi', 'uji', 'log'])) {
             $tab = 'konfigurasi';
         }
         $def = ['wa_url' => '', 'wa_api_key' => '', 'wa_number' => ''];
         $cfg = array_merge($def, Pengaturan::ambil());
+        $logs = $tab === 'log'
+            ? NotifikasiLog::with('siswa')->orderByDesc('id')->paginate(10)->withQueryString()
+            : null;
 
-        return view('whatsapp.index', ['tab' => $tab, 'cfg' => $cfg]);
+        return view('whatsapp.index', ['tab' => $tab, 'cfg' => $cfg, 'logs' => $logs]);
     }
 
     public function simpan(Request $request)

@@ -7,7 +7,7 @@
 
 <div class="bg-slate-800/80 border border-slate-700 rounded-2xl p-5">
   <div class="flex items-center gap-1 bg-slate-900/80 p-1 rounded-xl border border-slate-700/60 overflow-x-auto text-xs font-semibold mb-5">
-    @foreach ([['konfigurasi', 'Konfigurasi'], ['uji', 'Uji Kirim']] as [$v, $label])
+    @foreach ([['konfigurasi', 'Konfigurasi'], ['uji', 'Uji Kirim'], ['log', 'Log Notifikasi']] as [$v, $label])
     <a href="{{ route('whatsapp.index', ['tab' => $v]) }}" class="px-3 py-1.5 rounded-lg whitespace-nowrap {{ $tab === $v ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white' }}">{{ $label }}</a>
     @endforeach
   </div>
@@ -66,6 +66,16 @@
       </div>
     </div>
     @endif
+  </div>
+  @elseif ($tab === 'log')
+  <div>
+    <h2 class="text-base font-semibold text-white mb-1">Log Notifikasi Absensi</h2>
+    <p class="text-[11px] text-slate-500 mb-4">Setiap absensi yang direkam dicatat di sini: terkirim atau gagal, beserta respons API.</p>
+    <div class="overflow-x-auto rounded-xl border border-slate-700/80"><table class="w-full text-left text-xs border-collapse">
+      <thead><tr class="bg-slate-900/90 text-slate-300 border-b border-slate-700 font-semibold"><th class="py-3.5 px-4">Waktu</th><th class="py-3.5 px-4">Siswa</th><th class="py-3.5 px-4 text-center">Tipe</th><th class="py-3.5 px-4">Tujuan</th><th class="py-3.5 px-4 text-center">Status</th><th class="py-3.5 px-4 text-center">HTTP</th><th class="py-3.5 px-4">Respons</th></tr></thead>
+      <tbody class="divide-y divide-slate-700/60 text-slate-300">@forelse ($logs as $l)<tr class="hover:bg-slate-700/30 transition-colors"><td class="py-3 px-4 font-mono text-slate-400 whitespace-nowrap">{{ $l->created_at }}</td><td class="py-3 px-4"><div class="font-semibold text-white text-sm">{{ $l->siswa->nama ?? $l->nisn }}</div><div class="text-[11px] text-slate-400 font-mono">{{ $l->nisn }} • {{ $l->tanggal }}</div></td><td class="py-3 px-4 text-center">@if ($l->tipe === 'pulang')<span class="bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 px-2.5 py-1 rounded-full text-[11px] font-semibold">PULANG</span>@else<span class="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-1 rounded-full text-[11px] font-semibold">MASUK</span>@endif</td><td class="py-3 px-4 font-mono text-slate-200">{{ $l->nomor_tujuan ?? '-' }}</td><td class="py-3 px-4 text-center">@if ($l->status === 'terkirim')<span class="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-1 rounded-full text-[11px] font-semibold">Terkirim</span>@elseif ($l->status === 'antre')<span class="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2.5 py-1 rounded-full text-[11px] font-semibold">Antre</span>@else<span class="bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2.5 py-1 rounded-full text-[11px] font-semibold">Gagal</span>@endif</td><td class="py-3 px-4 text-center font-mono text-slate-400">{{ $l->http_code ?? '-' }}</td><td class="py-3 px-4 text-[11px] text-slate-400 max-w-xs"><span title="{{ $l->respons }}">{{ \Illuminate\Support\Str::limit($l->respons ?? '-', 120) }}</span></td></tr>@empty<tr><td colspan="7" class="py-8 text-center text-slate-500">Belum ada notifikasi.</td></tr>@endforelse</tbody>
+    </table></div>
+    <div class="mt-4 text-slate-300 text-sm">{{ $logs->links() }}</div>
   </div>
   @endif
 </div>

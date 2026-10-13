@@ -10,7 +10,7 @@ class Siswa extends Model
 {
     protected $table = 'tb_siswa';
 
-    protected $fillable = ['nisn', 'rfid_tag', 'nama', 'kelas_id', 'gender'];
+    protected $fillable = ['nisn', 'rfid_tag', 'nama', 'kelas_id', 'gender', 'no_hp_ortu'];
 
     public function kelas(): BelongsTo
     {

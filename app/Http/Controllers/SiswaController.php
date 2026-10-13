@@ -17,7 +17,7 @@ class SiswaController extends Controller
         }
         $siswas = Siswa::with('kelas')
             ->leftJoin('tb_kelas as k', 'k.id', '=', 'tb_siswa.kelas_id')
-            ->when($request->q, fn ($q) => $q->where('tb_siswa.nama', 'like', "%{$request->q}%")->orWhere('tb_siswa.nisn', 'like', "%{$request->q}%")->orWhere('tb_siswa.rfid_tag', 'like', "%{$request->q}%")->orWhere('k.nama', 'like', "%{$request->q}%"))
+            ->when($request->q, fn ($q) => $q->where('tb_siswa.nama', 'like', "%{$request->q}%")->orWhere('tb_siswa.nisn', 'like', "%{$request->q}%")->orWhere('tb_siswa.rfid_tag', 'like', "%{$request->q}%")->orWhere('tb_siswa.no_hp_ortu', 'like', "%{$request->q}%")->orWhere('k.nama', 'like', "%{$request->q}%"))
             ->select('tb_siswa.*')
             ->orderBy('k.nama')->orderBy('tb_siswa.nama')->paginate(10)->withQueryString();
 
@@ -100,7 +100,7 @@ class SiswaController extends Controller
         $fail = [];
         foreach ($rows as $i => $r) {
             $line = $i + 2;
-            [$nisn, $rfid, $nama, $kelasNama, $gender] = array_map('trim', array_pad(array_values($r), 5, ''));
+            [$nisn, $rfid, $nama, $kelasNama, $gender, $noHp] = array_map('trim', array_pad(array_values($r), 6, ''));
             $gender = strtoupper($gender);
             if ($nisn === '' || $rfid === '' || $nama === '' || $kelasNama === '' || ! in_array($gender, ['L', 'P'], true)) {
                 $fail[] = "Baris $line: tak lengkap / gender bukan L/P.";
@@ -112,6 +112,11 @@ class SiswaController extends Controller
 
                 continue;
             }
+            if ($noHp !== '' && ! preg_match('/^[+]?[0-9][0-9\s-]{6,18}$/', $noHp)) {
+                $fail[] = "Baris $line: no HP ortu/wali tidak valid.";
+
+                continue;
+            }
             if (Siswa::where('rfid_tag', $rfid)->where('nisn', '!=', $nisn)->exists()) {
                 $fail[] = "Baris $line: RFID $rfid dipakai siswa lain.";
 
@@ -119,7 +124,7 @@ class SiswaController extends Controller
             }
             try {
                 $kelasId = Kelas::firstOrCreate(['nama' => mb_substr($kelasNama, 0, 30)])->id;
-                Siswa::updateOrCreate(['nisn' => $nisn], ['rfid_tag' => $rfid, 'nama' => $nama, 'kelas_id' => $kelasId, 'gender' => $gender]);
+                Siswa::updateOrCreate(['nisn' => $nisn], ['rfid_tag' => $rfid, 'nama' => $nama, 'kelas_id' => $kelasId, 'gender' => $gender, 'no_hp_ortu' => $noHp !== '' ? mb_substr($noHp, 0, 20) : null]);
                 $ok++;
             } catch (\Throwable $e) {
                 $fail[] = "Baris $line: gagal simpan.";
@@ -137,6 +142,7 @@ class SiswaController extends Controller
             'nama' => ['required', 'string', 'max:100'],
             'kelas_id' => ['required', 'exists:tb_kelas,id'],
             'gender' => ['required', 'in:L,P'],
+            'no_hp_ortu' => ['nullable', 'string', 'max:20', 'regex:/^[+]?[0-9][0-9\s-]{6,18}$/'],
         ];
     }
 
@@ -176,7 +182,7 @@ class SiswaController extends Controller
             $xml = $this->loadXmlTolerant($this->sanitizeSheetXml((string) $zip->getFromName($sheet)));
             $rows = [];
             foreach ($xml->sheetData->row as $row) {
-                $cells = ['A' => '', 'B' => '', 'C' => '', 'D' => '', 'E' => ''];
+                $cells = ['A' => '', 'B' => '', 'C' => '', 'D' => '', 'E' => '', 'F' => ''];
                 foreach ($row->c as $c) {
                     preg_match('/^([A-Z]+)/', (string) $c['r'], $m);
                     $col = $m[1] ?? '';
@@ -252,12 +258,12 @@ class SiswaController extends Controller
 
     private function buildTemplate(): string
     {
-        $rows = [['NISN', 'RFID_TAG', 'NAMA', 'KELAS', 'GENDER'], ['0082234749', '2234749610', 'Muhammad Rizky Pratama', 'XII RPL 1', 'L'], ['0082345678', '2094812', 'Siti Aminah', 'XII RPL 2', 'P']];
+        $rows = [['NISN', 'RFID_TAG', 'NAMA', 'KELAS', 'GENDER', 'NO_HP_ORTU'], ['0082234749', '2234749610', 'Muhammad Rizky Pratama', 'XII RPL 1', 'L', '6281234567890'], ['0082345678', '2094812', 'Siti Aminah', 'XII RPL 2', 'P', '6289876543210']];
         $sd = '';
         foreach ($rows as $i => $r) {
             $n = $i + 1;
             $sd .= "<row r=\"$n\">";
-            foreach (range(0, 4) as $c) {
+            foreach (range(0, 5) as $c) {
                 $v = htmlspecialchars($r[$c] ?? '', ENT_XML1);
                 $sd .= '<c r="'.chr(65 + $c).$n.'" t="inlineStr"><is><t>'.$v.'</t></is></c>';
             }
@@ -277,6 +283,6 @@ class SiswaController extends Controller
 
     private function messages(): array
     {
-        return ['nisn.required' => 'NISN wajib diisi.', 'nisn.regex' => 'NISN hanya angka, maks 10 digit.', 'nisn.unique' => 'NISN sudah terdaftar.', 'rfid_tag.unique' => 'RFID sudah dipakai siswa lain.', 'kelas_id.required' => 'Pilih kelas dulu.', 'kelas_id.exists' => 'Kelas tidak valid, buat dulu di menu Kelas.', 'gender.in' => 'Gender harus L atau P.'];
+        return ['nisn.required' => 'NISN wajib diisi.', 'nisn.regex' => 'NISN hanya angka, maks 10 digit.', 'nisn.unique' => 'NISN sudah terdaftar.', 'rfid_tag.unique' => 'RFID sudah dipakai siswa lain.', 'kelas_id.required' => 'Pilih kelas dulu.', 'kelas_id.exists' => 'Kelas tidak valid, buat dulu di menu Kelas.', 'gender.in' => 'Gender harus L atau P.', 'no_hp_ortu.regex' => 'No HP ortu/wali tidak valid.']; 
     }
 }

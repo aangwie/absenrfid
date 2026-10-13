@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\KirimNotifikasiAbsensi;
 use App\Models\Absensi;
+use App\Models\NotifikasiLog;
 use App\Models\Siswa;
 use App\Support\WaktuAbsensi;
 use Illuminate\Http\Request;
@@ -42,6 +44,7 @@ class DashboardController extends Controller
             $abs->status_masuk = $kat === 'Terlambat' ? 'Terlambat' : 'Tepat Waktu';
             $abs->status_pulang = 'Belum';
             $abs->save();
+            $this->antrekanNotifikasi($siswa, $today, $jam, 'masuk', $abs->status_masuk);
             $out = ['ok' => true, 'type' => 'MASUK', 'nama' => $siswa->nama, 'jam' => $jam, 'status' => $abs->status_masuk];
         } elseif (! $abs->jam_pulang) {
             if ($kat !== 'Pulang') {
@@ -51,12 +54,44 @@ class DashboardController extends Controller
             $abs->jam_pulang = $jam;
             $abs->status_pulang = 'Selesai';
             $abs->save();
+            $this->antrekanNotifikasi($siswa, $today, $jam, 'pulang', 'Selesai');
             $out = ['ok' => true, 'type' => 'PULANG', 'nama' => $siswa->nama, 'jam' => $jam, 'status' => 'Selesai'];
         } else {
             $out = ['ok' => false, 'pesan' => $siswa->nama.' sudah tap masuk & pulang.'];
         }
 
         return $request->wantsJson() ? response()->json($out) : back()->with('tap', $out);
+    }
+
+    /**
+     * Catat notifikasi absensi ke tb_notifikasi_log lalu antrekan pengiriman
+     * WA ke ortu/wali: 10 detik setelah absensi, +10 detik per antrean lain
+     * yang belum terkirim (jeda 10 detik dari notifikasi pertama).
+     */
+    private function antrekanNotifikasi(Siswa $siswa, string $tanggal, string $jam, string $tipe, string $status): void
+    {
+        try {
+            $tujuan = KirimNotifikasiAbsensi::normalisasiNomor($siswa->no_hp_ortu);
+            $pesan = KirimNotifikasiAbsensi::susunPesan($siswa, $tipe, $jam, $status, $tanggal);
+            $log = NotifikasiLog::create([
+                'nisn' => $siswa->nisn,
+                'tanggal' => $tanggal,
+                'tipe' => $tipe,
+                'nomor_tujuan' => $tujuan !== '' ? $tujuan : trim((string) $siswa->no_hp_ortu),
+                'pesan' => $pesan,
+                'status' => 'antre',
+            ]);
+            if ($tujuan === '') {
+                $log->update(['status' => 'gagal', 'respons' => 'Nomor HP ortu/wali kosong atau tidak valid.', 'sent_at' => now()]);
+
+                return;
+            }
+            $menunggu = NotifikasiLog::where('status', 'antre')->where('id', '<', $log->id)->count();
+            $tundaDetik = 10 * ($menunggu + 1);
+            KirimNotifikasiAbsensi::dispatch($log->id)->delay(now()->addSeconds($tundaDetik));
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     public function rekap()
