@@ -88,8 +88,13 @@
   <div class="max-w-2xl">
     <h2 class="text-base font-semibold text-white mb-1">Perawatan</h2>
     <p class="text-[11px] text-slate-500 mb-4">Operasi pemeliharaan aplikasi.</p>
+    <div class="flex gap-3 mb-4 bg-slate-900/60 border border-slate-700 rounded-xl p-3 text-xs">
+      <div class="flex-1"><p class="text-slate-500">Jobs antre</p><p class="font-mono font-bold text-amber-300 text-base">{{ $rawat['jobs'] ?? 0 }}</p></div>
+      <div class="flex-1"><p class="text-slate-500">Jobs gagal</p><p class="font-mono font-bold text-rose-300 text-base">{{ $rawat['gagal'] ?? 0 }}</p></div>
+      <div class="flex-1"><p class="text-slate-500">Notifikasi antre</p><p class="font-mono font-bold text-sky-300 text-base">{{ $rawat['notif_antre'] ?? 0 }}</p></div>
+    </div>
     <div class="flex flex-col gap-2">
-      @foreach ([['clear-cache', 'Bersihkan Cache', 'Hapus cache config/route/view.'], ['migrate', 'Migrasi DB', 'Jalankan migrasi yang tertunda.'], ['symlink', 'Symlink Storage', 'Buat link public/storage bila belum ada.']] as [$aksi, $label, $desc])
+      @foreach ([['clear-cache', 'Bersihkan Cache', 'Hapus cache config/route/view.'], ['migrate', 'Migrasi DB', 'Jalankan migrasi yang tertunda.'], ['symlink', 'Symlink Storage', 'Buat link public/storage bila belum ada.'], ['queue-work', 'Jalankan Antrean', 'Proses jobs tertunda (queue:work, berhenti saat kosong, maks 55 dtk).']] as [$aksi, $label, $desc])
       <form action="{{ route('pengaturan.rawat') }}" method="POST" class="flex flex-col sm:flex-row sm:items-center gap-2 bg-slate-900/60 border border-slate-700 rounded-xl p-3">@csrf
         <input type="hidden" name="aksi" value="{{ $aksi }}">
         <p class="text-xs text-slate-300 flex-1"><span class="font-semibold text-white">{{ $label }}</span> <span class="text-slate-500">— {{ $desc }}</span></p>

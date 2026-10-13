@@ -91,6 +91,15 @@ class NotifikasiAbsensiTest extends TestCase
         }
     }
 
+    public function test_tombol_perawatan_jalankan_antrean(): void
+    {
+        $admin = \App\Models\User::factory()->create();
+        $this->actingAs($admin)->get(route('pengaturan.index', ['tab' => 'perawatan']))->assertOk();
+        $res = $this->actingAs($admin)->post(route('pengaturan.rawat'), ['aksi' => 'queue-work']);
+        $res->assertRedirect(route('pengaturan.index', ['tab' => 'perawatan']));
+        $this->assertStringContainsString('Antrean jobs', session('log') ?? '');
+    }
+
     public function test_tap_membuat_log_dan_mengirim_saat_worker_jalan(): void
     {
         Http::fake(['*' => Http::response(['status' => true], 200)]);

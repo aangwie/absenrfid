@@ -24,8 +24,18 @@ class PengaturanController extends Controller
             'github_repo' => '', 'github_branch' => 'main', 'github_token' => '', 'logo_sekolah' => '',
         ];
         $p = array_merge($def, Pengaturan::ambil());
+        $rawat = ['jobs' => 0, 'gagal' => 0, 'notif_antre' => 0];
+        if ($tab === 'perawatan') {
+            try {
+                $rawat['jobs'] = DB::table('jobs')->count();
+                $rawat['gagal'] = DB::table('failed_jobs')->count();
+                $rawat['notif_antre'] = DB::table('tb_notifikasi_log')->where('status', 'antre')->count();
+            } catch (\Throwable $e) {
+                // tabel antrean belum ada: tampilkan 0
+            }
+        }
 
-        return view('pengaturan.index', ['tab' => $tab, 'p' => $p, 'log' => session('log')]);
+        return view('pengaturan.index', ['tab' => $tab, 'p' => $p, 'log' => session('log'), 'rawat' => $rawat]);
     }
 
     public function simpanInstitusi(Request $request)
@@ -143,7 +153,7 @@ class PengaturanController extends Controller
 
     public function rawat(Request $request)
     {
-        $data = $request->validate(['aksi' => ['required', 'in:clear-cache,migrate,symlink']]);
+        $data = $request->validate(['aksi' => ['required', 'in:clear-cache,migrate,symlink,queue-work']]);
         $log = ['$ aksi: ' . $data['aksi']];
         try {
             if ($data['aksi'] === 'clear-cache') {
@@ -152,6 +162,22 @@ class PengaturanController extends Controller
             } elseif ($data['aksi'] === 'migrate') {
                 Artisan::call('migrate', ['--force' => true]);
                 $log[] = trim(Artisan::output()) ?: 'Migrasi selesai.';
+            } elseif ($data['aksi'] === 'queue-work') {
+                if (function_exists('set_time_limit')) {
+                    @set_time_limit(120);
+                }
+                $sebelum = DB::table('jobs')->count();
+                $log[] = "Antrean jobs sebelum: {$sebelum}. Menjalankan queue:work (berhenti saat kosong, maks 55 dtk)...";
+                Artisan::call('queue:work', ['--stop-when-empty' => true, '--sleep' => 1, '--tries' => 3, '--max-time' => 55]);
+                $out = trim(Artisan::output());
+                if ($out !== '') {
+                    $log[] = $out;
+                }
+                $sesudah = DB::table('jobs')->count();
+                $log[] = "Antrean jobs sesudah: {$sesudah}.";
+                $log[] = $sesudah < $sebelum
+                    ? 'SELESAI: antrean diproses.'
+                    : 'SELESAI: tidak ada job jatuh tempo. Job tertunda (delay) diproses saat waktunya tiba atau oleh worker kontinu: php artisan queue:work.';
             } elseif (! (is_link(public_path('storage')) || file_exists(public_path('storage')))) {
                 Artisan::call('storage:link');
                 $log[] = trim(Artisan::output()) ?: 'Symlink storage dibuat.';
