@@ -47,6 +47,25 @@
       </div>
       <div><button type="submit" class="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold px-4 py-2 rounded-xl">Kirim Pesan</button></div>
     </form>
+
+    @if (session('wa_hasil'))
+    @php($hasil = session('wa_hasil'))
+    <div class="mt-4 rounded-xl border overflow-hidden {{ $hasil['sukses'] ? 'border-emerald-500/40' : 'border-rose-500/40' }}">
+      <div class="px-4 py-3 flex items-center gap-2 {{ $hasil['sukses'] ? 'bg-emerald-500/10' : 'bg-rose-500/10' }}">
+        <span class="text-[11px] font-bold px-2.5 py-1 rounded-full {{ $hasil['sukses'] ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-rose-500/20 text-rose-300 border border-rose-500/40' }}">{{ $hasil['sukses'] ? 'BERHASIL' : 'GAGAL' }}</span>
+        <span class="text-xs text-slate-300">{{ $hasil['waktu'] ?? '' }}</span>
+        @if (! is_null($hasil['http'] ?? null))<span class="ml-auto text-[11px] font-mono text-slate-300">HTTP {{ $hasil['http'] }}</span>@endif
+      </div>
+      <div class="bg-slate-900/60 px-4 py-3 text-xs flex flex-col gap-2">
+        <div class="flex gap-2"><span class="text-slate-500 w-20 shrink-0">Tujuan</span><span class="font-mono text-slate-200">{{ $hasil['tujuan'] ?? '-' }}</span></div>
+        <div class="flex gap-2"><span class="text-slate-500 w-20 shrink-0">Keterangan</span><span class="text-slate-200">{{ $hasil['ringkasan'] ?? '-' }}</span></div>
+        <div>
+          <p class="text-slate-500 mb-1.5">Respons API</p>
+          <pre class="text-[11px] font-mono text-slate-200 bg-slate-950 border border-slate-700 rounded-lg p-3 whitespace-pre-wrap break-all">{{ $hasil['detail'] ?? '-' }}</pre>
+        </div>
+      </div>
+    </div>
+    @endif
   </div>
   @endif
 </div>

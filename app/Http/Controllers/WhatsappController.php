@@ -57,34 +57,63 @@ class WhatsappController extends Controller
         $sender = trim($cfg['wa_number'] ?? '');
 
         if (! $url || ! $apiKey || ! $sender) {
-            return redirect()->route('whatsapp.index', ['tab' => 'uji'])->withErrors(['msg' => 'Konfigurasi WhatsApp (URL/API Key/Number) belum disimpan.']);
+            return redirect()->route('whatsapp.index', ['tab' => 'uji'])->withInput()->withErrors(['msg' => 'Konfigurasi WhatsApp (URL/API Key/Number) belum disimpan.'])->with('wa_hasil', [
+                'sukses' => false, 'http' => null, 'tujuan' => trim($data['tujuan']), 'waktu' => now()->toDateTimeString(),
+                'ringkasan' => 'Konfigurasi belum lengkap. Isi URL, API Key, dan Number dulu di tab Konfigurasi.',
+                'detail' => 'wa_url / wa_api_key / wa_number kosong.',
+            ]);
         }
 
         try {
+            $tujuan = trim($data['tujuan']);
             $res = Http::withHeaders(['Content-Type' => 'application/x-www-form-urlencoded'])
                 ->asForm()
                 ->timeout(30)
                 ->post($url, [
                     'api_key' => $apiKey,
                     'sender' => $sender,
-                    'number' => trim($data['tujuan']),
+                    'number' => $tujuan,
                     'message' => $data['pesan'],
                 ]);
 
             $body = (string) $res->body();
-            if (strlen($body) > 2000) {
-                $body = substr($body, 0, 2000) . '... (dipotong)';
+            $detail = $body;
+            $decoded = json_decode($body, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $detail = json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            }
+            if (strlen($detail) > 2000) {
+                $detail = substr($detail, 0, 2000) . '... (dipotong)';
             }
             $log = 'POST ' . $url . ' [form-urlencoded]' . "\n"
-                . 'HTTP ' . $res->status() . "\n" . $body;
+                . 'HTTP ' . $res->status() . "\n" . $detail;
 
             if ($res->successful()) {
-                return redirect()->route('whatsapp.index', ['tab' => 'uji'])->with('ok', 'Pesan terkirim (HTTP ' . $res->status() . ').')->with('log', $log);
+                $ket = 'Berhasil: API merespons HTTP ' . $res->status() . '. Cek detail respons & pastikan pesan masuk di nomor tujuan.';
+                if (is_array($decoded)) {
+                    foreach (['message', 'msg', 'status', 'result', 'success'] as $k) {
+                        if (isset($decoded[$k]) && (is_string($decoded[$k]) || is_numeric($decoded[$k]) || is_bool($decoded[$k]))) {
+                            $ket .= ' | ' . $k . ': ' . (is_bool($decoded[$k]) ? ($decoded[$k] ? 'true' : 'false') : $decoded[$k]);
+                        }
+                    }
+                }
+                return redirect()->route('whatsapp.index', ['tab' => 'uji'])->withInput()->with('ok', 'Pesan terkirim (HTTP ' . $res->status() . ').')->with('log', $log)->with('wa_hasil', [
+                    'sukses' => true, 'http' => $res->status(), 'tujuan' => $tujuan, 'waktu' => now()->toDateTimeString(),
+                    'ringkasan' => $ket, 'detail' => $detail,
+                ]);
             }
 
-            return redirect()->route('whatsapp.index', ['tab' => 'uji'])->withErrors(['msg' => 'Gagal kirim (HTTP ' . $res->status() . ').'])->with('log', $log);
+            return redirect()->route('whatsapp.index', ['tab' => 'uji'])->withInput()->withErrors(['msg' => 'Gagal kirim (HTTP ' . $res->status() . '). Periksa detail respons di bawah.'])->with('log', $log)->with('wa_hasil', [
+                'sukses' => false, 'http' => $res->status(), 'tujuan' => $tujuan, 'waktu' => now()->toDateTimeString(),
+                'ringkasan' => 'Gagal: API merespons HTTP ' . $res->status() . ' (bukan 2xx). Umumnya API Key / sender / format nomor salah, atau kuota habis. Lihat detail respons.',
+                'detail' => $detail,
+            ]);
         } catch (\Throwable $e) {
-            return redirect()->route('whatsapp.index', ['tab' => 'uji'])->withErrors(['msg' => 'Gagal kirim: ' . $e->getMessage()]);
+            return redirect()->route('whatsapp.index', ['tab' => 'uji'])->withInput()->withErrors(['msg' => 'Gagal kirim: ' . $e->getMessage()])->with('wa_hasil', [
+                'sukses' => false, 'http' => null, 'tujuan' => trim($data['tujuan']), 'waktu' => now()->toDateTimeString(),
+                'ringkasan' => 'Gagal: koneksi ke API bermasalah (' . $e->getMessage() . '). Cek URL, jaringan server, dan timeout.',
+                'detail' => $e->getMessage(),
+            ]);
         }
     }
 }
