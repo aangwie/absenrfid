@@ -103,19 +103,37 @@ class PengaturanController extends Controller
 
         $log = [];
         try {
+            $base = base_path();
+            $publicUrl = "https://github.com/{$repo}.git";
+            $authedUrl = "https://x-access-token:{$token}@github.com/{$repo}.git";
+            $jalan = fn (array $cmd, int $batas = 60) => Process::path($base)->timeout($batas)->run($cmd);
+            $tampil = function ($hasil) {
+                $out = trim(($hasil->output() ?? '') . "\n" . ($hasil->errorOutput() ?? ''));
+                return $out === '' ? '(tidak ada output, exit ' . $hasil->exitCode() . ')' : $out . ' [exit ' . $hasil->exitCode() . ']';
+            };
+
+            $log[] = '$ git remote set-url origin ' . $publicUrl . ' (pakai token, disembunyikan)';
+            $jalan(['git', 'remote', 'set-url', 'origin', $authedUrl], 30);
+
             $log[] = '$ git fetch origin';
-            $fetch = Process::run(['git', 'fetch', 'origin'], base_path(), timeout: 60);
-            $log[] = $fetch->output();
+            $fetch = $jalan(['git', 'fetch', 'origin'], 120);
+            $log[] = $tampil($fetch);
 
             $log[] = '$ git reset --hard origin/' . $branch;
-            $reset = Process::run(['git', 'reset', '--hard', 'origin/' . $branch], base_path(), timeout: 60);
-            $log[] = $reset->output();
+            $reset = $jalan(['git', 'reset', '--hard', 'origin/' . $branch], 120);
+            $log[] = $tampil($reset);
 
-            $log[] = '$ git remote set-url origin https://github.com/' . $repo . '.git';
-            Process::run(['git', 'remote', 'set-url', 'origin', "https://github.com/{$repo}.git"], base_path(), timeout: 30);
+            $log[] = '$ git remote set-url origin ' . $publicUrl . ' (bersihkan token)';
+            $jalan(['git', 'remote', 'set-url', 'origin', $publicUrl], 30);
 
-            $ok = $reset->successful();
-            $log[] = $ok ? 'SELESAI: kode diperbarui.' : 'GAGAL: cek repo/branch/token.';
+            $ok = $fetch->successful() && $reset->successful();
+            if ($ok) {
+                Artisan::call('optimize:clear');
+                $log[] = trim(Artisan::output()) ?: 'Cache dibersihkan.';
+                $log[] = 'SELESAI: kode diperbarui.';
+            } else {
+                $log[] = 'GAGAL: cek repo/branch/token.';
+            }
         } catch (\Throwable $e) {
             $log[] = 'GAGAL: ' . $e->getMessage();
         }
