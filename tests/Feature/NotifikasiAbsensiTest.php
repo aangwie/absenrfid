@@ -91,6 +91,14 @@ class NotifikasiAbsensiTest extends TestCase
         }
     }
 
+    public function test_tombol_nfc_ada_di_kios_dan_dashboard(): void
+    {
+        $this->get('/')->assertOk()->assertSee('NfcHelper', false)->assertSee('Scan NFC HP', false);
+        $admin = \App\Models\User::factory()->create();
+        $this->actingAs($admin)->get(route('dashboard'))
+            ->assertOk()->assertSee('NfcHelper', false)->assertSee('nfc-btn', false);
+    }
+
     public function test_hapus_semua_log_notifikasi(): void
     {
         $admin = \App\Models\User::factory()->create();

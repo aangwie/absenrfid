@@ -7,8 +7,8 @@
     window.__RENTANG__ = @json($rentang ?? []);
     window.__BOLEH_AWAL__ = {{ ($boleh ?? true) ? 'true' : 'false' }};
 </script>
-<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+@include('partials.nfc-helper')
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script><script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/htm@3/dist/htm.umd.js"></script>
 <script>
     const html = htm.bind(React.createElement);
@@ -29,6 +29,15 @@
         const [clock, setClock] = useState(new Date());
         const [query, setQuery] = useState('');
         const [page, setPage] = useState(1);
+        const [nfcMsg, setNfcMsg] = useState('');
+        const [nfcBusy, setNfcBusy] = useState(false);
+        const nfcOk = typeof window !== 'undefined' && window.NfcHelper && window.NfcHelper.supported();
+        function scanNfc() {
+            if (!window.NfcHelper || !window.NfcHelper.supported()) { setNfcMsg('Perangkat/browser tidak mendukung Web NFC. Gunakan reader USB/OTG.'); return; }
+            setNfcBusy(true);
+            setNfcMsg('Tempelkan kartu ke HP...');
+            window.NfcHelper.read().then(function (tag) { setNfcMsg(''); tap(tag); }).catch(function (err) { setNfcMsg(window.NfcHelper.pesanError(err)); }).finally(function () { setNfcBusy(false); });
+        }
         const perPage = 5;
         const ref = useRef(null);
         const jamNow = clock.toTimeString().split(' ')[0];
@@ -134,19 +143,21 @@
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="lg:col-span-2 bg-slate-800 border border-slate-700 rounded-2xl p-5">
         <h2 className="font-semibold text-white mb-1">Area Tap Reader RFID USB</h2>
-        <p className="text-xs text-slate-400 mb-3">Tempelkan kartu pada reader USB — ID terbaca otomatis sebagai keyboard + Enter. Jam buka ${jamBuka}.</p>
+        <p className="text-xs text-slate-400 mb-3">Tempelkan kartu pada reader USB — ID terbaca otomatis sebagai keyboard + Enter. Di HP Android (Chrome) bisa juga pakai tombol Scan NFC HP. Jam buka ${jamBuka}.</p>
         ${boleh ? null : html`<div className="bg-rose-500/15 border border-rose-500/40 text-rose-200 text-xs rounded-xl px-4 py-3 mb-3">Di luar jam absensi (${jamNow}). Input dikunci — jam buka ${jamBuka}.</div>`}
         <form onSubmit=${e => { e.preventDefault(); tap(rfid); }} className="relative">
           <input ref=${ref} value=${rfid} onInput=${e => setRfid(e.target.value)} placeholder=${boleh ? 'Tempelkan kartu RFID di sini...' : 'Di luar jam absensi — input dikunci...'} disabled=${!boleh}
             className=${'w-full bg-slate-900/90 border-2 rounded-xl px-4 py-3.5 text-white font-mono focus:outline-none ' + (boleh ? 'border-indigo-500/50' : 'border-slate-700 opacity-50 cursor-not-allowed')} />
           <button disabled=${!boleh} className="absolute right-2 top-1/2 -translate-y-1/2 bg-indigo-600 text-white text-xs font-semibold px-4 py-2 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed">Proses Tap</button>
         </form>
+        ${nfcOk ? html`<button onClick=${scanNfc} disabled=${!boleh || nfcBusy} className="mt-2 w-full border border-slate-600 text-slate-200 text-xs font-semibold px-4 py-2.5 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed">${nfcBusy ? 'Menunggu kartu ditempel...' : 'Scan NFC HP'}</button>` : null}
+        ${nfcMsg ? html`<p className="text-[11px] text-slate-400 mt-2">${nfcMsg}</p>` : null}
       </div>
       <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 text-center">
         ${scan ? (scan.ok ? html`<div><p className="text-xs font-bold px-3 py-1 rounded-full inline-block ${scan.type === 'MASUK' ? 'bg-emerald-500 text-slate-950' : 'bg-indigo-500 text-white'}">ABSEN ${scan.type} • ${scan.jam}</p><h4 className="font-bold text-white mt-2">${scan.nama}</h4><p className="text-xs text-slate-400">${scan.status}</p></div>`
           : html`<div><p className="font-bold text-rose-300">Gagal</p><p className="text-xs text-rose-200/80 mt-1">${scan.pesan}</p></div>`)
         : html`<div className="border-2 border-dashed border-slate-700 rounded-xl p-6 text-slate-500 text-sm">Siap menunggu tap RFID USB...</div>`}
-        <p className="text-[11px] text-slate-500 mt-3">Gunakan reader USB fisik untuk tap kartu.</p>
+        <p className="text-[11px] text-slate-500 mt-3">Gunakan reader USB fisik, OTG di HP, atau Scan NFC HP (Chrome Android).</p>
       </div>
     </div>
     <div className="bg-slate-800/80 border border-slate-700 rounded-2xl p-5">

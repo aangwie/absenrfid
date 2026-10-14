@@ -79,11 +79,33 @@
           <div class="border-2 border-rose-500 bg-rose-500/10 rounded-xl p-3 text-center text-sm mb-3"><p class="font-bold text-rose-300">Gagal</p><p class="text-xs text-rose-200/80 mt-1">{{ session('tap')['pesan'] }}</p></div>
           @endif
         @endif
-        <form method="POST" action="{{ route('tap') }}" class="flex flex-col gap-2">@csrf
-          <input name="tag" required autofocus autocomplete="off" placeholder="{{ ($boleh ?? true) ? 'Tempel / ketik RFID / NISN lalu Enter...' : 'Di luar jam absensi — input dikunci...' }}" {{ ($boleh ?? true) ? '' : 'disabled' }} class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-mono disabled:opacity-50 disabled:cursor-not-allowed">
+        <form id="tap-form" method="POST" action="{{ route('tap') }}" class="flex flex-col gap-2">@csrf
+          <input id="tap-input" name="tag" required autofocus autocomplete="off" placeholder="{{ ($boleh ?? true) ? 'Tempel / ketik RFID / NISN lalu Enter...' : 'Di luar jam absensi — input dikunci...' }}" {{ ($boleh ?? true) ? '' : 'disabled' }} class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-mono disabled:opacity-50 disabled:cursor-not-allowed">
           <button {{ ($boleh ?? true) ? '' : 'disabled' }} class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed">Catat Tap</button>
         </form>
-        <p class="text-[11px] text-slate-500 mt-2">Gunakan reader USB fisik untuk tap kartu.</p>
+        @include('partials.nfc-helper')
+        <div id="nfc-wrap" class="hidden flex-col gap-2 mt-2">
+          <button type="button" id="nfc-btn" {{ ($boleh ?? true) ? '' : 'disabled' }} class="border border-slate-600 hover:border-indigo-500 text-slate-200 text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed">Scan NFC HP</button>
+          <p id="nfc-msg" class="text-[11px] text-slate-400"></p>
+        </div>
+        <script>
+        (function () {
+          var wrap = document.getElementById('nfc-wrap'), btn = document.getElementById('nfc-btn'), msg = document.getElementById('nfc-msg');
+          if (!wrap || !window.NfcHelper || !window.NfcHelper.supported()) return;
+          wrap.classList.remove('hidden'); wrap.classList.add('flex');
+          btn.addEventListener('click', function () {
+            msg.textContent = 'Tempelkan kartu ke HP...';
+            btn.disabled = true;
+            window.NfcHelper.read().then(function (tag) {
+              document.getElementById('tap-input').value = tag;
+              document.getElementById('tap-form').submit();
+            }).catch(function (err) {
+              msg.textContent = window.NfcHelper.pesanError(err);
+            }).finally(function () { btn.disabled = false; });
+          });
+        })();
+        </script>
+        <p class="text-[11px] text-slate-500 mt-2">Gunakan reader USB fisik, OTG di HP, atau Scan NFC HP (Chrome Android).</p>
       </div>
       <div class="bg-slate-800/80 border border-slate-700 rounded-2xl p-5">
         <h2 class="text-base font-semibold text-white mb-3">Tap Terakhir</h2>
