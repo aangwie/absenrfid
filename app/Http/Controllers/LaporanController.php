@@ -98,6 +98,28 @@ class LaporanController extends Controller
         return redirect()->route('laporan.index', request()->only(['mode', 'tanggal', 'dari', 'sampai', 'bulan']))->with('ok', 'Status diubah jadi ' . $st . '.');
     }
 
+    public function hapus(Absensi $absen)
+    {
+        $absen->delete();
+
+        return back()->with('ok', 'Data absensi dihapus.');
+    }
+
+    public function bulkHapus(Request $request)
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'exists:tb_absensi,id'],
+        ], [
+            'ids.required' => 'Centang minimal 1 data dulu.',
+        ]);
+
+        $count = Absensi::whereIn('id', $data['ids'])->count();
+        Absensi::whereIn('id', $data['ids'])->delete();
+
+        return back()->with('ok', "$count data absensi dihapus.");
+    }
+
     public function tandai(Request $request)
     {
         $data = $request->validate([

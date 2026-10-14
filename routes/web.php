@@ -61,6 +61,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/laporan/ekspor', [LaporanController::class, 'ekspor'])->name('laporan.ekspor');
     Route::get('/laporan/{absen}/edit', [LaporanController::class, 'edit'])->name('laporan.edit');
     Route::put('/laporan/{absen}', [LaporanController::class, 'perbarui'])->name('laporan.perbarui');
+    Route::delete('/laporan/{absen}', [LaporanController::class, 'hapus'])->name('laporan.hapus');
+    Route::post('/laporan/bulk-hapus', [LaporanController::class, 'bulkHapus'])->name('laporan.bulk-hapus');
     Route::get('/pengaturan', [PengaturanController::class, 'index'])->name('pengaturan.index');
     Route::post('/pengaturan/institusi', [PengaturanController::class, 'simpanInstitusi'])->name('pengaturan.institusi');
     Route::post('/pengaturan/waktu', [PengaturanController::class, 'simpanWaktu'])->name('pengaturan.waktu');
