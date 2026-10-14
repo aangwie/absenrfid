@@ -21,7 +21,7 @@ class SiswaController extends Controller
             ->select('tb_siswa.*')
             ->orderBy('k.nama')->orderBy('tb_siswa.nama')->paginate(10)->withQueryString();
 
-        return view('siswa.index', compact('siswas'));
+        return view('siswa.index', ['siswas' => $siswas, 'kelasList' => Kelas::orderBy('nama')->get()]);
     }
 
     public function create()
@@ -67,6 +67,38 @@ class SiswaController extends Controller
         $siswa->delete();
 
         return redirect()->route('siswa.index')->with('ok', 'Siswa dihapus.');
+    }
+
+    public function bulkPindah(Request $request)
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'exists:tb_siswa,id'],
+            'kelas_id' => ['required', 'exists:tb_kelas,id'],
+        ], [
+            'ids.required' => 'Pilih minimal 1 siswa dulu.',
+            'kelas_id.required' => 'Pilih kelas tujuan dulu.',
+            'kelas_id.exists' => 'Kelas tujuan tidak valid.',
+        ]);
+
+        $count = Siswa::whereIn('id', $data['ids'])->update(['kelas_id' => $data['kelas_id']]);
+
+        return redirect()->route('siswa.index')->with('ok', "$count siswa dipindah kelas.");
+    }
+
+    public function bulkHapus(Request $request)
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'exists:tb_siswa,id'],
+        ], [
+            'ids.required' => 'Pilih minimal 1 siswa dulu.',
+        ]);
+
+        $count = Siswa::whereIn('id', $data['ids'])->count();
+        Siswa::whereIn('id', $data['ids'])->delete();
+
+        return redirect()->route('siswa.index')->with('ok', "$count siswa dihapus.");
     }
 
     public function cekRfid(Request $request)

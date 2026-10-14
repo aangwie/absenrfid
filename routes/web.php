@@ -47,6 +47,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/siswa/cek-rfid', [SiswaController::class, 'cekRfid'])->name('siswa.cek-rfid');
     Route::get('/siswa/template', [SiswaController::class, 'template'])->name('siswa.template');
     Route::post('/siswa/import', [SiswaController::class, 'import'])->name('siswa.import');
+    Route::post('/siswa/bulk-pindah', [SiswaController::class, 'bulkPindah'])->name('siswa.bulk-pindah');
+    Route::post('/siswa/bulk-hapus', [SiswaController::class, 'bulkHapus'])->name('siswa.bulk-hapus');
     Route::get('/siswa/{siswa}/edit', [SiswaController::class, 'edit'])->name('siswa.edit');
     Route::put('/siswa/{siswa}', [SiswaController::class, 'update'])->name('siswa.update');
     Route::delete('/siswa/{siswa}', [SiswaController::class, 'destroy'])->name('siswa.destroy');
