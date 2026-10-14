@@ -91,47 +91,82 @@ document.querySelectorAll('.del-form').forEach(f => f.addEventListener('submit',
   Swal.fire({title: 'Hapus ' + nama + '?', text: 'Data siswa beserta absensinya ikut terhapus.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#e11d48', cancelButtonColor: '#475569', confirmButtonText: 'Ya, hapus', cancelButtonText: 'Batal', background: '#1e293b', color: '#f1f5f9'}).then(r => { if (r.isConfirmed) f.submit(); });
 }));
 (function () {
-  var checks = Array.prototype.slice.call(document.querySelectorAll('.row-check'));
-  var all1 = document.getElementById('check-all'), all2 = document.getElementById('check-all-head');
-  var countEl = document.getElementById('bulk-count'), delN = document.getElementById('bulk-del-n');
-  var btnPindah = document.getElementById('btn-bulk-pindah'), btnHapus = document.getElementById('btn-bulk-hapus');
-  var selKelas = document.getElementById('bulk-kelas');
-  if (!checks.length || !btnPindah) return;
-  function selected() { return checks.filter(function (c) { return c.checked; }).map(function (c) { return c.value; }); }
-  function refresh() {
-    var n = selected().length;
-    countEl.textContent = n + ' dipilih';
-    delN.textContent = n;
-    btnHapus.disabled = n === 0;
-    btnPindah.disabled = n === 0;
-    var all = n > 0 && n === checks.length;
-    if (all1) all1.checked = all;
-    if (all2) all2.checked = all;
+  function initBulk() {
+    var btnPindah = document.getElementById('btn-bulk-pindah');
+    var btnHapus = document.getElementById('btn-bulk-hapus');
+    var countEl = document.getElementById('bulk-count');
+    var delN = document.getElementById('bulk-del-n');
+    var selKelas = document.getElementById('bulk-kelas');
+    var all1 = document.getElementById('check-all');
+    var all2 = document.getElementById('check-all-head');
+    if (!btnPindah || !btnHapus) return;
+    function rows() { return Array.prototype.slice.call(document.querySelectorAll('.row-check')); }
+    function selected() { return rows().filter(function (c) { return c.checked; }).map(function (c) { return c.value; }); }
+    function setEnabled(btn, on) {
+      btn.disabled = !on;
+      if (on) { btn.removeAttribute('disabled'); btn.classList.remove('opacity-40'); }
+      else { btn.setAttribute('disabled', 'disabled'); if (!btn.classList.contains('opacity-40')) btn.classList.add('opacity-40'); }
+    }
+    function refresh() {
+      var list = rows();
+      var n = selected().length;
+      if (countEl) countEl.textContent = n + ' dipilih';
+      if (delN) delN.textContent = n;
+      setEnabled(btnHapus, n > 0);
+      setEnabled(btnPindah, n > 0);
+      var all = n > 0 && list.length > 0 && n === list.length;
+      if (all1) all1.checked = all;
+      if (all2) all2.checked = all;
+    }
+    function setAll(v) { rows().forEach(function (c) { c.checked = v; }); refresh(); }
+    function confirmDlg(opts, fallbackMsg) {
+      if (window.Swal && Swal.fire) return Swal.fire(opts);
+      return Promise.resolve({isConfirmed: window.confirm(fallbackMsg || opts.title || 'Lanjut?')});
+    }
+    function alertDlg(opts) {
+      if (window.Swal && Swal.fire) return Swal.fire(opts);
+      window.alert(opts.title || 'Info');
+      return Promise.resolve();
+    }
+    // Delegasi di document: tetap jalan walau baris tabel di-render ulang / script optimizer hosting.
+    document.addEventListener('change', function (e) {
+      var t = e.target;
+      if (!t) return;
+      if (t.classList && t.classList.contains('row-check')) refresh();
+      else if (t.id === 'check-all' || t.id === 'check-all-head') setAll(t.checked);
+    });
+    // Fallback click (beberapa WebView/CDN optimizer menelan event change).
+    document.addEventListener('click', function (e) {
+      var t = e.target;
+      if (!t) return;
+      if (t.id === 'check-all' || t.id === 'check-all-head') setTimeout(refresh, 0);
+      else if (t.classList && t.classList.contains('row-check')) setTimeout(refresh, 0);
+    });
+    function post(url, payload) {
+      fetch(url, {method: 'POST', headers: {'X-CSRF-TOKEN': '{{ csrf_token() }}', 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json', 'Accept': 'text/html'}, body: JSON.stringify(payload)})
+        .then(function (r) { if (!r.ok) return r.json().then(function (j) { throw j; }).catch(function () { throw {message: 'HTTP ' + r.status}; }); return r.text(); })
+        .then(function (html) { document.open(); document.write(html); document.close(); })
+        .catch(function (j) { alertDlg({title: 'Gagal', text: (j && (j.message || (j.errors && ((j.errors.ids && j.errors.ids[0]) || (j.errors.kelas_id && j.errors.kelas_id[0]))))) || 'Periksa pilihan & kelas tujuan.'), icon: 'error', background: '#1e293b', color: '#f1f5f9'}); });
+    }
+    btnPindah.addEventListener('click', function () {
+      var ids = selected();
+      var kelasId = selKelas ? selKelas.value : '';
+      var kelasNama = (selKelas && selKelas.options[selKelas.selectedIndex]) ? selKelas.options[selKelas.selectedIndex].text : '';
+      if (!ids.length) return alertDlg({title: 'Belum ada yang dipilih', icon: 'info', background: '#1e293b', color: '#f1f5f9'});
+      if (!kelasId) return alertDlg({title: 'Pilih kelas tujuan dulu', icon: 'warning', background: '#1e293b', color: '#f1f5f9'});
+      confirmDlg({title: 'Pindah ' + ids.length + ' siswa ke ' + kelasNama + '?', icon: 'question', showCancelButton: true, confirmButtonColor: '#d97706', cancelButtonColor: '#475569', confirmButtonText: 'Ya, pindahkan', cancelButtonText: 'Batal', background: '#1e293b', color: '#f1f5f9'}, 'Pindah ' + ids.length + ' siswa ke ' + kelasNama + '?')
+        .then(function (r) { if (r.isConfirmed) post('{{ route('siswa.bulk-pindah') }}', {ids: ids, kelas_id: kelasId}); });
+    });
+    btnHapus.addEventListener('click', function () {
+      var ids = selected();
+      if (!ids.length) return alertDlg({title: 'Belum ada yang dipilih', icon: 'info', background: '#1e293b', color: '#f1f5f9'});
+      confirmDlg({title: 'Hapus ' + ids.length + ' siswa?', text: 'Data absensi ikut terhapus & tidak bisa dibatalkan.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#e11d48', cancelButtonColor: '#475569', confirmButtonText: 'Ya, hapus', cancelButtonText: 'Batal', background: '#1e293b', color: '#f1f5f9'}, 'Hapus ' + ids.length + ' siswa? Data absensi ikut terhapus.')
+        .then(function (r) { if (r.isConfirmed) post('{{ route('siswa.bulk-hapus') }}', {ids: ids}); });
+    });
+    refresh();
   }
-  function setAll(v) { checks.forEach(function (c) { c.checked = v; }); refresh(); }
-  if (all1) all1.addEventListener('change', function () { setAll(all1.checked); });
-  if (all2) all2.addEventListener('change', function () { setAll(all2.checked); });
-  checks.forEach(function (c) { c.addEventListener('change', refresh); });
-  function post(url, payload, onOk) {
-    fetch(url, {method: 'POST', headers: {'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Content-Type': 'application/json', 'Accept': 'text/html'}, body: JSON.stringify(payload)})
-      .then(function (r) { if (!r.ok) return r.json().then(function (j) { throw j; }).catch(function () { throw {message: 'HTTP ' + r.status}; }); return r.text(); })
-      .then(function (html) { document.open(); document.write(html); document.close(); })
-      .catch(function (j) { Swal.fire({title: 'Gagal', text: (j && (j.message || (j.errors && (j.errors.ids ? j.errors.ids[0] : j.errors.kelas_id ? j.errors.kelas_id[0] : '')))) || 'Periksa pilihan & kelas tujuan.'), icon: 'error', background: '#1e293b', color: '#f1f5f9'}); });
-  }
-  btnPindah.addEventListener('click', function () {
-    var ids = selected(), kelasId = selKelas.value, kelasNama = selKelas.options[selKelas.selectedIndex] ? selKelas.options[selKelas.selectedIndex].text : '';
-    if (!ids.length) return Swal.fire({title: 'Belum ada yang dipilih', icon: 'info', background: '#1e293b', color: '#f1f5f9'});
-    if (!kelasId) return Swal.fire({title: 'Pilih kelas tujuan dulu', icon: 'warning', background: '#1e293b', color: '#f1f5f9'});
-    Swal.fire({title: 'Pindah ' + ids.length + ' siswa ke ' + kelasNama + '?', icon: 'question', showCancelButton: true, confirmButtonColor: '#d97706', cancelButtonColor: '#475569', confirmButtonText: 'Ya, pindahkan', cancelButtonText: 'Batal', background: '#1e293b', color: '#f1f5f9'})
-      .then(function (r) { if (r.isConfirmed) post('{{ route('siswa.bulk-pindah') }}', {ids: ids, kelas_id: kelasId}); });
-  });
-  btnHapus.addEventListener('click', function () {
-    var ids = selected();
-    if (!ids.length) return Swal.fire({title: 'Belum ada yang dipilih', icon: 'info', background: '#1e293b', color: '#f1f5f9'});
-    Swal.fire({title: 'Hapus ' + ids.length + ' siswa?', text: 'Data absensi ikut terhapus & tidak bisa dibatalkan.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#e11d48', cancelButtonColor: '#475569', confirmButtonText: 'Ya, hapus', cancelButtonText: 'Batal', background: '#1e293b', color: '#f1f5f9'})
-      .then(function (r) { if (r.isConfirmed) post('{{ route('siswa.bulk-hapus') }}', {ids: ids}); });
-  });
-  refresh();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initBulk);
+  else initBulk();
 })();
 </script>
 @endsection
