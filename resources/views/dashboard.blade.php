@@ -94,7 +94,7 @@
           if (!wrap || !window.NfcHelper || !window.NfcHelper.supported()) return;
           wrap.classList.remove('hidden'); wrap.classList.add('flex');
           btn.addEventListener('click', function () {
-            msg.textContent = 'Tempelkan kartu ke HP...';
+            msg.textContent = 'Jangan pindah aplikasi — tempelkan kartu ke HP sekarang...';
             btn.disabled = true;
             window.NfcHelper.read().then(function (tag) {
               document.getElementById('tap-input').value = tag;

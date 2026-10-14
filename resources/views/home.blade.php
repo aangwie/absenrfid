@@ -35,7 +35,7 @@
         function scanNfc() {
             if (!window.NfcHelper || !window.NfcHelper.supported()) { setNfcMsg('Perangkat/browser tidak mendukung Web NFC. Gunakan reader USB/OTG.'); return; }
             setNfcBusy(true);
-            setNfcMsg('Tempelkan kartu ke HP...');
+            setNfcMsg('Jangan pindah aplikasi — tempelkan kartu ke HP sekarang...');
             window.NfcHelper.read().then(function (tag) { setNfcMsg(''); tap(tag); }).catch(function (err) { setNfcMsg(window.NfcHelper.pesanError(err)); }).finally(function () { setNfcBusy(false); });
         }
         const perPage = 5;
