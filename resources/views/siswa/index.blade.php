@@ -57,21 +57,21 @@
     <input name="q" value="{{ request('q') }}" placeholder="Cari nama / NISN / RFID / kelas..." class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500">
     <button class="bg-slate-700 hover:bg-indigo-600 text-white text-sm font-semibold px-4 py-2 rounded-xl">Cari</button>
   </form>
-  <div class="flex flex-col md:flex-row md:items-center gap-2 mb-3 bg-slate-900/60 border border-slate-700 rounded-xl p-3">
-    <label class="flex items-center gap-2 text-xs text-slate-300 font-semibold whitespace-nowrap"><input type="checkbox" id="check-all" class="w-4 h-4 accent-indigo-600 rounded"> Pilih semua</label>
-    <span id="bulk-count" class="text-[11px] text-slate-500">0 dipilih</span>
+  <form id="bulk-form" method="POST" action="{{ route('siswa.bulk-pindah') }}" class="flex flex-col md:flex-row md:items-center gap-2 mb-3 bg-slate-900/60 border border-slate-700 rounded-xl p-3">@csrf
+    <label class="flex items-center gap-2 text-xs text-slate-300 font-semibold whitespace-nowrap cursor-pointer"><input type="checkbox" id="check-all" class="w-4 h-4 accent-indigo-600 rounded"> Pilih semua</label>
+    <span id="bulk-count" class="text-[11px] text-slate-500">Pilih siswa via checklist</span>
     <div class="flex flex-col sm:flex-row gap-2 md:ml-auto w-full md:w-auto">
-      <select id="bulk-kelas" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+      <select id="bulk-kelas" name="kelas_id" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
         <option value="">-- Kelas tujuan --</option>
         @foreach ($kelasList as $k)<option value="{{ $k->id }}">{{ $k->nama }}</option>@endforeach
       </select>
-      <button type="button" id="btn-bulk-pindah" class="bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white text-xs font-semibold px-4 py-2 rounded-xl" disabled>Pindah Kelas</button>
-      <button type="button" id="btn-bulk-hapus" class="bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white text-xs font-semibold px-4 py-2 rounded-xl" disabled>Hapus (<span id="bulk-del-n">0</span>)</button>
+      <button type="submit" id="btn-bulk-pindah" formaction="{{ route('siswa.bulk-pindah') }}" class="bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold px-4 py-2 rounded-xl">Pindah Kelas (<span id="bulk-move-n">0</span>)</button>
+      <button type="submit" id="btn-bulk-hapus" formaction="{{ route('siswa.bulk-hapus') }}" class="bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold px-4 py-2 rounded-xl">Hapus (<span id="bulk-del-n">0</span>)</button>
     </div>
-  </div>
+  </form>
   <div class="overflow-x-auto rounded-xl border border-slate-700/80"><table class="w-full text-left text-xs border-collapse">
     <thead><tr class="bg-slate-900/90 text-slate-300 border-b border-slate-700 font-semibold"><th class="py-3.5 px-4 w-10"><input type="checkbox" id="check-all-head" class="w-4 h-4 accent-indigo-600 rounded"></th><th class="py-3.5 px-4">No</th><th class="py-3.5 px-4">Siswa</th><th class="py-3.5 px-4">NISN / RFID</th><th class="py-3.5 px-4">Kelas</th><th class="py-3.5 px-4">HP Ortu/Wali</th><th class="py-3.5 px-4 text-center">Gender</th><th class="py-3.5 px-4 text-center">Aksi</th></tr></thead>
-    <tbody class="divide-y divide-slate-700/60 text-slate-300">@forelse ($siswas as $i => $s)<tr class="hover:bg-slate-700/30 transition-colors"><td class="py-3.5 px-4"><input type="checkbox" name="ids[]" value="{{ $s->id }}" class="row-check w-4 h-4 accent-indigo-600 rounded"></td><td class="py-3.5 px-4 font-mono text-slate-400">{{ $siswas->firstItem() + $i }}</td><td class="py-3.5 px-4"><div class="font-semibold text-white text-sm">{{ $s->nama }}</div><div class="text-[11px] text-slate-400">Gender: {{ $s->gender === 'P' ? 'Perempuan' : 'Laki-laki' }}</div></td><td class="py-3.5 px-4 font-mono"><div class="text-slate-200">NISN: {{ $s->nisn }}</div><span class="inline-block text-[10px] px-2 py-0.5 rounded border mt-1 font-semibold bg-slate-900 text-slate-400 border-slate-700">RFID: {{ $s->rfid_tag }}</span></td><td class="py-3.5 px-4"><span class="bg-slate-700/60 px-2.5 py-1 rounded-md border border-slate-600/80 font-medium">{{ $s->kelas->nama ?? '-' }}</span></td><td class="py-3.5 px-4 font-mono text-slate-200">{{ $s->no_hp_ortu ?? '-' }}</td><td class="py-3.5 px-4 text-center text-slate-300">{{ $s->gender }}</td>
+    <tbody class="divide-y divide-slate-700/60 text-slate-300">@forelse ($siswas as $i => $s)<tr class="hover:bg-slate-700/30 transition-colors"><td class="py-3.5 px-4"><input type="checkbox" name="ids[]" value="{{ $s->id }}" form="bulk-form" class="row-check w-4 h-4 accent-indigo-600 rounded cursor-pointer"></td><td class="py-3.5 px-4 font-mono text-slate-400">{{ $siswas->firstItem() + $i }}</td><td class="py-3.5 px-4"><div class="font-semibold text-white text-sm">{{ $s->nama }}</div><div class="text-[11px] text-slate-400">Gender: {{ $s->gender === 'P' ? 'Perempuan' : 'Laki-laki' }}</div></td><td class="py-3.5 px-4 font-mono"><div class="text-slate-200">NISN: {{ $s->nisn }}</div><span class="inline-block text-[10px] px-2 py-0.5 rounded border mt-1 font-semibold bg-slate-900 text-slate-400 border-slate-700">RFID: {{ $s->rfid_tag }}</span></td><td class="py-3.5 px-4"><span class="bg-slate-700/60 px-2.5 py-1 rounded-md border border-slate-600/80 font-medium">{{ $s->kelas->nama ?? '-' }}</span></td><td class="py-3.5 px-4 font-mono text-slate-200">{{ $s->no_hp_ortu ?? '-' }}</td><td class="py-3.5 px-4 text-center text-slate-300">{{ $s->gender }}</td>
     <td class="py-3.5 px-4 text-center whitespace-nowrap"><a href="{{ route('siswa.edit', $s) }}" title="Edit {{ $s->nama }}" class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-700 hover:bg-indigo-600 text-slate-200 hover:text-white transition-all mr-1"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg></a><form method="POST" action="{{ route('siswa.destroy', $s) }}" class="inline del-form" data-nama="{{ $s->nama }}">@csrf @method('DELETE')<button title="Hapus {{ $s->nama }}" class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-rose-600/20 border border-rose-500/40 text-rose-300 hover:bg-rose-600 hover:text-white transition-all"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg></button></form></td></tr>@empty<tr><td colspan="8" class="py-8 text-center text-slate-500">Tidak ada data.</td></tr>@endforelse</tbody>
   </table></div>
   <div class="flex flex-col sm:flex-row items-center justify-between gap-2 mt-4 text-xs text-slate-400">
@@ -85,83 +85,86 @@
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
-document.querySelectorAll('.del-form').forEach(f => f.addEventListener('submit', e => {
-  e.preventDefault();
-  const nama = f.dataset.nama || 'siswa ini';
-  Swal.fire({title: 'Hapus ' + nama + '?', text: 'Data siswa beserta absensinya ikut terhapus.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#e11d48', cancelButtonColor: '#475569', confirmButtonText: 'Ya, hapus', cancelButtonText: 'Batal', background: '#1e293b', color: '#f1f5f9'}).then(r => { if (r.isConfirmed) f.submit(); });
-}));
+// Konfirmasi hapus per-baris (fallback native bila CDN Swal diblokir hosting).
+(function () {
+  function ask(title, text) {
+    if (window.Swal && Swal.fire) return Swal.fire({title: title, text: text, icon: 'warning', showCancelButton: true, confirmButtonColor: '#e11d48', cancelButtonColor: '#475569', confirmButtonText: 'Ya, hapus', cancelButtonText: 'Batal', background: '#1e293b', color: '#f1f5f9'});
+    return Promise.resolve({isConfirmed: window.confirm(title + '\n' + (text || ''))});
+  }
+  document.querySelectorAll('.del-form').forEach(function (f) {
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      ask('Hapus ' + (f.dataset.nama || 'siswa ini') + '?', 'Data siswa beserta absensinya ikut terhapus.').then(function (r) { if (r.isConfirmed) f.submit(); });
+    });
+  });
+})();
+</script>
+<script>
+// Bulk checklist: form submit native (tetap jalan walau fetch/CDN gagal).
+// Tombol SENGAJA selalu aktif; validasi kosong ditangani JS + server.
 (function () {
   function initBulk() {
-    var btnPindah = document.getElementById('btn-bulk-pindah');
-    var btnHapus = document.getElementById('btn-bulk-hapus');
+    var form = document.getElementById('bulk-form');
+    if (!form) return;
     var countEl = document.getElementById('bulk-count');
     var delN = document.getElementById('bulk-del-n');
+    var moveN = document.getElementById('bulk-move-n');
     var selKelas = document.getElementById('bulk-kelas');
     var all1 = document.getElementById('check-all');
     var all2 = document.getElementById('check-all-head');
-    if (!btnPindah || !btnHapus) return;
     function rows() { return Array.prototype.slice.call(document.querySelectorAll('.row-check')); }
-    function selected() { return rows().filter(function (c) { return c.checked; }).map(function (c) { return c.value; }); }
-    function setEnabled(btn, on) {
-      btn.disabled = !on;
-      if (on) { btn.removeAttribute('disabled'); btn.classList.remove('opacity-40'); }
-      else { btn.setAttribute('disabled', 'disabled'); if (!btn.classList.contains('opacity-40')) btn.classList.add('opacity-40'); }
-    }
+    function selected() { return rows().filter(function (c) { return c.checked; }); }
     function refresh() {
-      var list = rows();
       var n = selected().length;
-      if (countEl) countEl.textContent = n + ' dipilih';
+      if (countEl) countEl.textContent = n > 0 ? n + ' dipilih' : 'Pilih siswa via checklist';
       if (delN) delN.textContent = n;
-      setEnabled(btnHapus, n > 0);
-      setEnabled(btnPindah, n > 0);
+      if (moveN) moveN.textContent = n;
+      var list = rows();
       var all = n > 0 && list.length > 0 && n === list.length;
-      if (all1) all1.checked = all;
-      if (all2) all2.checked = all;
+      if (all1 && all1.checked !== all) all1.checked = all;
+      if (all2 && all2.checked !== all) all2.checked = all;
     }
-    function setAll(v) { rows().forEach(function (c) { c.checked = v; }); refresh(); }
-    function confirmDlg(opts, fallbackMsg) {
-      if (window.Swal && Swal.fire) return Swal.fire(opts);
-      return Promise.resolve({isConfirmed: window.confirm(fallbackMsg || opts.title || 'Lanjut?')});
+    function setAll(v) { rows().forEach(function (c) { c.checked = !!v; }); refresh(); }
+    function ask(title, text, danger) {
+      if (window.Swal && Swal.fire) return Swal.fire({title: title, text: text, icon: danger ? 'warning' : 'question', showCancelButton: true, confirmButtonColor: danger ? '#e11d48' : '#d97706', cancelButtonColor: '#475569', confirmButtonText: 'Ya, lanjut', cancelButtonText: 'Batal', background: '#1e293b', color: '#f1f5f9'});
+      return Promise.resolve({isConfirmed: window.confirm(title + '\n' + (text || ''))});
     }
-    function alertDlg(opts) {
-      if (window.Swal && Swal.fire) return Swal.fire(opts);
-      window.alert(opts.title || 'Info');
+    function info(title) {
+      if (window.Swal && Swal.fire) return Swal.fire({title: title, icon: 'warning', background: '#1e293b', color: '#f1f5f9'});
+      window.alert(title);
       return Promise.resolve();
     }
-    // Delegasi di document: tetap jalan walau baris tabel di-render ulang / script optimizer hosting.
     document.addEventListener('change', function (e) {
       var t = e.target;
-      if (!t) return;
-      if (t.classList && t.classList.contains('row-check')) refresh();
+      if (!t || !t.classList) return;
+      if (t.classList.contains('row-check')) refresh();
       else if (t.id === 'check-all' || t.id === 'check-all-head') setAll(t.checked);
     });
-    // Fallback click (beberapa WebView/CDN optimizer menelan event change).
     document.addEventListener('click', function (e) {
       var t = e.target;
-      if (!t) return;
-      if (t.id === 'check-all' || t.id === 'check-all-head') setTimeout(refresh, 0);
-      else if (t.classList && t.classList.contains('row-check')) setTimeout(refresh, 0);
+      if (!t || !t.classList) return;
+      if (t.classList.contains('row-check') || t.id === 'check-all' || t.id === 'check-all-head') setTimeout(refresh, 0);
     });
-    function post(url, payload) {
-      fetch(url, {method: 'POST', headers: {'X-CSRF-TOKEN': '{{ csrf_token() }}', 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json', 'Accept': 'text/html'}, body: JSON.stringify(payload)})
-        .then(function (r) { if (!r.ok) return r.json().then(function (j) { throw j; }).catch(function () { throw {message: 'HTTP ' + r.status}; }); return r.text(); })
-        .then(function (html) { document.open(); document.write(html); document.close(); })
-        .catch(function (j) { alertDlg({title: 'Gagal', text: (j && (j.message || (j.errors && ((j.errors.ids && j.errors.ids[0]) || (j.errors.kelas_id && j.errors.kelas_id[0]))))) || 'Periksa pilihan & kelas tujuan.'), icon: 'error', background: '#1e293b', color: '#f1f5f9'}); });
-    }
-    btnPindah.addEventListener('click', function () {
-      var ids = selected();
-      var kelasId = selKelas ? selKelas.value : '';
-      var kelasNama = (selKelas && selKelas.options[selKelas.selectedIndex]) ? selKelas.options[selKelas.selectedIndex].text : '';
-      if (!ids.length) return alertDlg({title: 'Belum ada yang dipilih', icon: 'info', background: '#1e293b', color: '#f1f5f9'});
-      if (!kelasId) return alertDlg({title: 'Pilih kelas tujuan dulu', icon: 'warning', background: '#1e293b', color: '#f1f5f9'});
-      confirmDlg({title: 'Pindah ' + ids.length + ' siswa ke ' + kelasNama + '?', icon: 'question', showCancelButton: true, confirmButtonColor: '#d97706', cancelButtonColor: '#475569', confirmButtonText: 'Ya, pindahkan', cancelButtonText: 'Batal', background: '#1e293b', color: '#f1f5f9'}, 'Pindah ' + ids.length + ' siswa ke ' + kelasNama + '?')
-        .then(function (r) { if (r.isConfirmed) post('{{ route('siswa.bulk-pindah') }}', {ids: ids, kelas_id: kelasId}); });
+    var lastBtn = null;
+    form.querySelectorAll('button[type=submit]').forEach(function (b) {
+      b.addEventListener('click', function () { lastBtn = b; });
     });
-    btnHapus.addEventListener('click', function () {
+    form.addEventListener('submit', function (e) {
+      var btn = (e.submitter || lastBtn || document.activeElement);
+      var isHapus = btn && btn.id === 'btn-bulk-hapus';
       var ids = selected();
-      if (!ids.length) return alertDlg({title: 'Belum ada yang dipilih', icon: 'info', background: '#1e293b', color: '#f1f5f9'});
-      confirmDlg({title: 'Hapus ' + ids.length + ' siswa?', text: 'Data absensi ikut terhapus & tidak bisa dibatalkan.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#e11d48', cancelButtonColor: '#475569', confirmButtonText: 'Ya, hapus', cancelButtonText: 'Batal', background: '#1e293b', color: '#f1f5f9'}, 'Hapus ' + ids.length + ' siswa? Data absensi ikut terhapus.')
-        .then(function (r) { if (r.isConfirmed) post('{{ route('siswa.bulk-hapus') }}', {ids: ids}); });
+      if (!ids.length) { e.preventDefault(); info('Centang minimal 1 siswa dulu.'); return; }
+      if (!isHapus) {
+        if (selKelas && !selKelas.value) { e.preventDefault(); info('Pilih kelas tujuan dulu.'); return; }
+      }
+      e.preventDefault();
+      var action = btn && btn.getAttribute('formaction');
+      if (action) form.setAttribute('action', action);
+      var namaKelas = (selKelas && selKelas.options[selKelas.selectedIndex]) ? selKelas.options[selKelas.selectedIndex].text : '';
+      var msg = isHapus
+        ? ask('Hapus ' + ids.length + ' siswa?', 'Data absensi ikut terhapus & tidak bisa dibatalkan.', true)
+        : ask('Pindah ' + ids.length + ' siswa ke ' + namaKelas + '?', '', false);
+      msg.then(function (r) { if (r.isConfirmed) form.submit(); });
     });
     refresh();
   }
