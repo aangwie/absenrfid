@@ -91,6 +91,15 @@ class NotifikasiAbsensiTest extends TestCase
         }
     }
 
+    public function test_hapus_semua_log_notifikasi(): void
+    {
+        $admin = \App\Models\User::factory()->create();
+        \App\Models\NotifikasiLog::create(['nisn' => 'X1', 'tanggal' => now()->toDateString(), 'tipe' => 'masuk', 'nomor_tujuan' => '6281', 'pesan' => 'a', 'status' => 'terkirim']);
+        \App\Models\NotifikasiLog::create(['nisn' => 'X2', 'tanggal' => now()->toDateString(), 'tipe' => 'pulang', 'nomor_tujuan' => '6282', 'pesan' => 'b', 'status' => 'gagal']);
+        $this->actingAs($admin)->delete(route('whatsapp.log-hapus'))->assertRedirect(route('whatsapp.index', ['tab' => 'log']));
+        $this->assertSame(0, \App\Models\NotifikasiLog::count());
+    }
+
     public function test_tab_tes_cron_ping_dan_cek(): void
     {
         $admin = \App\Models\User::factory()->create();

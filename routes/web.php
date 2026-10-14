@@ -72,6 +72,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/whatsapp/uji', [WhatsappController::class, 'uji'])->name('whatsapp.uji');
     Route::post('/whatsapp/ping', [WhatsappController::class, 'ping'])->name('whatsapp.ping');
     Route::post('/whatsapp/cek-cron', [WhatsappController::class, 'cek'])->name('whatsapp.cek');
+    Route::delete('/whatsapp/log', [WhatsappController::class, 'hapusLog'])->name('whatsapp.log-hapus');
     Route::get('/dokumentasi', [DokumentasiController::class, 'index'])->name('dokumentasi.index');
     Route::get('/profil', [ProfilController::class, 'show'])->name('profil');
     Route::put('/profil', [ProfilController::class, 'update'])->name('profil.update');

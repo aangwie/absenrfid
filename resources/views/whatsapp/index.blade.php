@@ -69,7 +69,14 @@
   </div>
   @elseif ($tab === 'log')
   <div>
-    <h2 class="text-base font-semibold text-white mb-1">Log Notifikasi Absensi</h2>
+    <div class="flex flex-col sm:flex-row sm:items-center gap-2 mb-1">
+      <h2 class="text-base font-semibold text-white flex-1">Log Notifikasi Absensi</h2>
+      @if (($logs->total() ?? 0) > 0)
+      <form method="POST" action="{{ route('whatsapp.log-hapus') }}" id="hapus-log-form">@csrf @method('DELETE')
+        <button type="submit" class="bg-rose-600/20 border border-rose-500/40 text-rose-300 hover:bg-rose-600 hover:text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all">Hapus Semua Log</button>
+      </form>
+      @endif
+    </div>
     <p class="text-[11px] text-slate-500 mb-4">Setiap absensi yang direkam dicatat di sini: terkirim atau gagal, beserta respons API.</p>
     <div class="overflow-x-auto rounded-xl border border-slate-700/80"><table class="w-full text-left text-xs border-collapse">
       <thead><tr class="bg-slate-900/90 text-slate-300 border-b border-slate-700 font-semibold"><th class="py-3.5 px-4">Waktu</th><th class="py-3.5 px-4">Siswa</th><th class="py-3.5 px-4 text-center">Tipe</th><th class="py-3.5 px-4">Tujuan</th><th class="py-3.5 px-4 text-center">Status</th><th class="py-3.5 px-4 text-center">HTTP</th><th class="py-3.5 px-4">Respons</th></tr></thead>
@@ -77,6 +84,14 @@
     </table></div>
     <div class="mt-4 text-slate-300 text-sm">{{ $logs->links() }}</div>
   </div>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+document.getElementById('hapus-log-form')?.addEventListener('submit', function (e) {
+  e.preventDefault();
+  var f = this;
+  Swal.fire({title: 'Hapus semua log notifikasi?', text: 'Seluruh riwayat terkirim/gagal akan dihapus permanen.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#e11d48', cancelButtonColor: '#475569', confirmButtonText: 'Ya, hapus', cancelButtonText: 'Batal', background: '#1e293b', color: '#f1f5f9'}).then(function (r) { if (r.isConfirmed) f.submit(); });
+});
+</script>
   @elseif ($tab === 'cron')
   <div class="max-w-2xl">
     <h2 class="text-base font-semibold text-white mb-1">Tes Cron Hosting</h2>

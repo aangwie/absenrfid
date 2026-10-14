@@ -139,8 +139,7 @@ class WhatsappController extends Controller
             ->with('ok', 'Ping uji dikirim ke antrean (' . $id . '). Tunggu ±1 menit (satu siklus cron), JANGAN klik Jalankan Antrean dulu, lalu klik Cek Hasil.');
     }
 
-    public function cek(Request $request)
-    {
+    public function cek(Request $request)    {
         $kirim = session('cron_ping');
         $cfg = Pengaturan::ambil();
         $status = $this->statusCron($request);
@@ -202,5 +201,13 @@ class WhatsappController extends Controller
         }
 
         return $data;
+    }
+
+    public function hapusLog(Request $request)
+    {
+        $jumlah = NotifikasiLog::count();
+        NotifikasiLog::query()->delete();
+
+        return redirect()->route('whatsapp.index', ['tab' => 'log'])->with('ok', "Log notifikasi dihapus ({$jumlah} baris).");
     }
 }
