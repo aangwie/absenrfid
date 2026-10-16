@@ -88,6 +88,7 @@
         <li><span class="text-white font-medium">Pas foto 3x4</span> — upload lewat tombol 📷 Foto di menu ini atau form Tambah/Edit Siswa (jpg/png/webp maks 300 Kb, otomatis dikonversi ke WebP agar kecil). Kosong = tampil inisial nama.</li>
         <li><span class="text-white font-medium">Halaman cetak</span> — terbuka di tab baru, 1 siswa = 1 lembar A4 berisi kartu <span class="text-white font-medium">Depan di kiri</span> dan <span class="text-white font-medium">Belakang di kanan</span>, ukuran KTP 85.6 × 53.98 mm dengan sudut lengkung.</li>
         <li><span class="text-white font-medium">Isi kartu</span> — Depan (kop atas): judul Kartu Pelajar, nama + alamat institusi, lalu pas foto 3x4 di kiri dan Nama, Tempat/Tanggal Lahir, NISN, Tahun Masuk. Belakang: tata tertib pemegang kartu + tanda tangan Kepala Sekolah (nama & NIP dari Pengaturan → Institusi).</li>
+        <li><span class="text-white font-medium">Unduh gambar</span> — pilih sisi Depan / Belakang / Depan + Belakang lalu Unduh Gambar (atau ⬇ PNG per baris). 1 gambar langsung terunduh sebagai PNG, banyak gambar dibungkus otomatis dalam 1 file ZIP.</li>
       </ul>
     </div>
     <div>

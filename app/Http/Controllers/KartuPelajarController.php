@@ -50,6 +50,29 @@ class KartuPelajarController extends Controller
         return view('kartu-pelajar.cetak', ['siswas' => $siswas, 'p' => $p]);
     }
 
+    public function eksporGambar(Request $request)
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:100'],
+            'ids.*' => ['integer', 'exists:tb_siswa,id'],
+            'sisi' => ['nullable', 'in:depan,belakang,keduanya'],
+        ], [
+            'ids.required' => 'Pilih minimal 1 siswa dulu.',
+            'ids.min' => 'Pilih minimal 1 siswa dulu.',
+            'ids.max' => 'Maksimal 100 siswa sekali ekspor.',
+            'sisi.in' => 'Sisi tidak valid.',
+        ]);
+
+        $siswas = Siswa::with('kelas')->whereIn('id', $data['ids'])->orderBy('nama')->get();
+        $p = array_merge([
+            'nama_institusi' => 'SMK Smart School', 'alamat' => '', 'no_hp' => '', 'logo_sekolah' => '',
+            'nama_kepala_sekolah' => '', 'nip_kepala_sekolah' => '',
+            'ttd_kepala_sekolah' => '', 'stempel_sekolah' => '',
+        ], Pengaturan::ambil());
+
+        return view('kartu-pelajar.ekspor-gambar', ['siswas' => $siswas, 'p' => $p, 'sisi' => $data['sisi'] ?? 'keduanya']);
+    }
+
     public function foto(Request $request, Siswa $siswa)
     {
         $data = $request->validate([

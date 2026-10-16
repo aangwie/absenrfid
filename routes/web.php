@@ -80,6 +80,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/whatsapp/log', [WhatsappController::class, 'hapusLog'])->name('whatsapp.log-hapus');
     Route::get('/kartu-pelajar', [KartuPelajarController::class, 'index'])->name('kartu-pelajar.index');
     Route::get('/kartu-pelajar/cetak', [KartuPelajarController::class, 'cetak'])->name('kartu-pelajar.cetak');
+    Route::get('/kartu-pelajar/ekspor-gambar', [KartuPelajarController::class, 'eksporGambar'])->name('kartu-pelajar.ekspor-gambar');
     Route::post('/kartu-pelajar/foto/{siswa}', [KartuPelajarController::class, 'foto'])->name('kartu-pelajar.foto');
     Route::get('/dokumentasi', [DokumentasiController::class, 'index'])->name('dokumentasi.index');
     Route::get('/profil', [ProfilController::class, 'show'])->name('profil');

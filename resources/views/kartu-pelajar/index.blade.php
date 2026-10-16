@@ -15,11 +15,23 @@
     </select>
     <button class="bg-slate-700 hover:bg-indigo-600 text-white text-sm font-semibold px-4 py-2 rounded-xl">Cari</button>
   </form>
-  <form id="cetak-form" method="GET" action="{{ route('kartu-pelajar.cetak') }}" target="_blank" class="flex flex-col md:flex-row md:items-center gap-2 mb-3 bg-slate-900/60 border border-slate-700 rounded-xl p-3">
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
+  <form id="cetak-form" method="GET" action="{{ route('kartu-pelajar.cetak') }}" target="_blank" class="flex flex-col md:flex-row md:items-center gap-2 bg-slate-900/60 border border-slate-700 rounded-xl p-3">
     <label class="flex items-center gap-2 text-xs text-slate-300 font-semibold whitespace-nowrap cursor-pointer"><input type="checkbox" id="check-all" class="w-4 h-4 accent-indigo-600 rounded"> Pilih semua</label>
     <span id="bulk-count" class="text-[11px] text-slate-500">Pilih siswa via checklist</span>
     <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-4 py-2 rounded-xl md:ml-auto">🖨 Cetak Terpilih (<span id="bulk-n">0</span>)</button>
   </form>
+  <div class="flex flex-col md:flex-row md:items-center gap-2 bg-slate-900/60 border border-slate-700 rounded-xl p-3">
+    <span class="text-xs text-slate-300 font-semibold whitespace-nowrap">Unduh gambar:</span>
+    <select id="ekspor-sisi" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+      <option value="depan">Halaman depan</option>
+      <option value="belakang">Halaman belakang</option>
+      <option value="keduanya" selected>Depan + belakang</option>
+    </select>
+    <button id="ekspor-btn" type="button" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2 rounded-xl md:ml-auto">⬇ Unduh Gambar (<span id="ekspor-n">0</span>)</button>
+    <!--span class="text-[8px] text-slate-500">1 gambar → PNG langsung • banyak → ZIP</span-->
+  </div>
+  </div>
   <div class="overflow-x-auto rounded-xl border border-slate-700/80"><table class="w-full text-left text-xs border-collapse">
     <thead><tr class="bg-slate-900/90 text-slate-300 border-b border-slate-700 font-semibold"><th class="py-3.5 px-4 w-10"><input type="checkbox" id="check-all-head" class="w-4 h-4 accent-indigo-600 rounded"></th><th class="py-3.5 px-4">Foto</th><th class="py-3.5 px-4">Siswa</th><th class="py-3.5 px-4">TTL / Thn Masuk</th><th class="py-3.5 px-4">Kelas</th><th class="py-3.5 px-4 text-center">Aksi</th></tr></thead>
     <tbody class="divide-y divide-slate-700/60 text-slate-300">
@@ -35,6 +47,7 @@
         <td class="py-3 px-4"><span class="bg-slate-700/60 px-2.5 py-1 rounded-md border border-slate-600/80 font-medium">{{ $s->kelas->nama ?? '-' }}</span></td>
         <td class="py-3 px-4 text-center whitespace-nowrap">
           <a href="{{ route('kartu-pelajar.cetak', ['ids' => [$s->id]]) }}" target="_blank" rel="noopener" title="Cetak {{ $s->nama }}" class="inline-flex items-center gap-1 px-3 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-semibold mr-1">🖨 Cetak</a>
+          <a href="{{ route('kartu-pelajar.ekspor-gambar', ['ids' => [$s->id], 'sisi' => 'keduanya']) }}" target="_blank" rel="noopener" title="Unduh gambar {{ $s->nama }} (PNG)" class="inline-flex items-center gap-1 px-3 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold mr-1">⬇ PNG</a>
           <form method="POST" action="{{ route('kartu-pelajar.foto', $s) }}" enctype="multipart/form-data" class="inline">@csrf<label title="Upload pas foto 3x4 {{ $s->nama }} (maks 300 Kb, otomatis jadi WebP)" class="inline-flex items-center gap-1 px-3 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-[11px] font-semibold cursor-pointer">📷 Foto<input type="file" name="foto" accept=".jpg,.jpeg,.png,.webp" class="hidden" onchange="this.form.submit()"></label></form>
         </td>
       </tr>
@@ -77,6 +90,32 @@
     if (!selected().length) { e.preventDefault(); alert('Centang minimal 1 siswa dulu.'); }
   });
   refresh();
+})();
+</script>
+<script>
+(function () {
+  var btn = document.getElementById('ekspor-btn');
+  var sisi = document.getElementById('ekspor-sisi');
+  var nEl = document.getElementById('ekspor-n');
+  if (!btn) return;
+  function selected() {
+    return Array.prototype.slice.call(document.querySelectorAll('.row-check')).filter(function (c) { return c.checked; });
+  }
+  document.addEventListener('change', function (e) {
+    var t = e.target;
+    if (!t || !t.classList) return;
+    if (t.classList.contains('row-check') || t.id === 'check-all' || t.id === 'check-all-head') {
+      if (nEl) nEl.textContent = selected().length;
+    }
+  });
+  if (nEl) nEl.textContent = selected().length;
+  btn.addEventListener('click', function () {
+    var rows = selected();
+    if (!rows.length) { alert('Centang minimal 1 siswa dulu.'); return; }
+    var params = rows.map(function (c) { return 'ids[]=' + encodeURIComponent(c.value); }).join('&');
+    params += '&sisi=' + encodeURIComponent(sisi ? sisi.value : 'keduanya');
+    window.open('{{ route('kartu-pelajar.ekspor-gambar') }}?' + params, '_blank', 'noopener');
+  });
 })();
 </script>
 @endsection
