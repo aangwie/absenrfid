@@ -29,6 +29,16 @@
         <label class="block text-xs font-semibold text-slate-300 mb-1.5">Nomor HP</label>
         <input type="text" name="no_hp" value="{{ old('no_hp', $p['no_hp']) }}" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500" required>
       </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1.5">Nama Kepala Sekolah (opsional)</label>
+          <input type="text" name="nama_kepala_sekolah" value="{{ old('nama_kepala_sekolah', $p['nama_kepala_sekolah'] ?? '') }}" maxlength="100" placeholder="cth Drs. H. Ahmad Suryana, M.Pd." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1.5">NIP Kepala Sekolah (opsional)</label>
+          <input type="text" name="nip_kepala_sekolah" value="{{ old('nip_kepala_sekolah', $p['nip_kepala_sekolah'] ?? '') }}" maxlength="30" placeholder="cth 19650101 199003 1 002" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500">
+        </div>
+      </div>
       <div>
         <label class="block text-xs font-semibold text-slate-300 mb-1.5">Logo</label>
         @if ($p['logo_sekolah'])
@@ -39,6 +49,29 @@
         @endif
         <input type="file" name="logo" accept="image/*" class="w-full text-xs text-slate-300 file:mr-3 file:px-4 file:py-2 file:rounded-lg file:border-0 file:bg-slate-700 file:text-white">
       </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1.5">TTD Kepala Sekolah (opsional)</label>
+          @if (! empty($p['ttd_kepala_sekolah']))
+          <div class="flex items-center gap-3 mb-2 bg-slate-900/60 border border-slate-700 rounded-xl p-3">
+            <img src="{{ $p['ttd_kepala_sekolah'] }}" alt="TTD Kepala Sekolah" class="h-16 w-24 object-contain rounded-lg bg-white/90">
+            <label class="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer"><input type="checkbox" name="hapus_ttd" value="1" class="accent-rose-600"> Hapus</label>
+          </div>
+          @endif
+          <input type="file" name="ttd" accept="image/*" class="w-full text-xs text-slate-300 file:mr-3 file:px-4 file:py-2 file:rounded-lg file:border-0 file:bg-slate-700 file:text-white">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1.5">Stempel Sekolah (opsional)</label>
+          @if (! empty($p['stempel_sekolah']))
+          <div class="flex items-center gap-3 mb-2 bg-slate-900/60 border border-slate-700 rounded-xl p-3">
+            <img src="{{ $p['stempel_sekolah'] }}" alt="Stempel Sekolah" class="h-16 w-16 object-contain rounded-lg bg-white/90">
+            <label class="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer"><input type="checkbox" name="hapus_stempel" value="1" class="accent-rose-600"> Hapus</label>
+          </div>
+          @endif
+          <input type="file" name="stempel" accept="image/*" class="w-full text-xs text-slate-300 file:mr-3 file:px-4 file:py-2 file:rounded-lg file:border-0 file:bg-slate-700 file:text-white">
+        </div>
+      </div>
+      <p class="text-[11px] text-slate-500">TTD & stempel disimpan base64, tampil sebagai preview di atas dan dipakai di tanda tangan belakang kartu pelajar.</p>
       <div><button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-4 py-2 rounded-xl">Simpan</button></div>
     </form>
   </div>

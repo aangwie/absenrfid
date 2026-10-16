@@ -18,24 +18,25 @@ class DatabaseSeeder extends Seeder
             ['name' => 'Admin', 'password' => Hash::make('admin123')]
         );
 
-        $kelasList = ['XII RPL 1', 'XII RPL 2', 'XI TKJ 2', 'X AKL 3', 'X IPA 1'];
+        $kelasList = ['7A', '7B', '8A', '8B', '9A', '9B'];
         foreach ($kelasList as $nama) {
             Kelas::firstOrCreate(['nama' => $nama]);
         }
 
         $siswas = [
-            ['nisn' => '0082234749', 'rfid_tag' => '2234749610', 'nama' => 'Muhammad Rizky Pratama', 'kelas' => 'XII RPL 1', 'gender' => 'L'],
-            ['nisn' => '0081234567', 'rfid_tag' => '1084291', 'nama' => 'Budi Santoso', 'kelas' => 'XII RPL 1', 'gender' => 'L'],
-            ['nisn' => '0082345678', 'rfid_tag' => '2094812', 'nama' => 'Siti Aminah', 'kelas' => 'XII RPL 2', 'gender' => 'P'],
-            ['nisn' => '0083456789', 'rfid_tag' => '3019284', 'nama' => 'Ahmad Rizky', 'kelas' => 'XI TKJ 2', 'gender' => 'L'],
-            ['nisn' => '0084567890', 'rfid_tag' => '4082910', 'nama' => 'Dewi Lestari', 'kelas' => 'X AKL 3', 'gender' => 'P'],
-            ['nisn' => '0086789012', 'rfid_tag' => '6012938', 'nama' => 'Anisa Rahmawati', 'kelas' => 'X IPA 1', 'gender' => 'P'],
+            ['nisn' => '0082234749', 'rfid_tag' => '2234749610', 'nama' => 'Muhammad Rizky Pratama', 'kelas' => '7A', 'gender' => 'L', 'tempat_lahir' => 'Bandung', 'tanggal_lahir' => '2011-05-12', 'tahun_masuk' => 2023],
+            ['nisn' => '0081234567', 'rfid_tag' => '1084291', 'nama' => 'Budi Santoso', 'kelas' => '7B', 'gender' => 'L', 'tempat_lahir' => 'Jakarta', 'tanggal_lahir' => '2011-03-08', 'tahun_masuk' => 2023],
+            ['nisn' => '0082345678', 'rfid_tag' => '2094812', 'nama' => 'Siti Aminah', 'kelas' => '8A', 'gender' => 'P', 'tempat_lahir' => 'Surabaya', 'tanggal_lahir' => '2012-08-20', 'tahun_masuk' => 2024],
+            ['nisn' => '0083456789', 'rfid_tag' => '3019284', 'nama' => 'Ahmad Rizky', 'kelas' => '8B', 'gender' => 'L', 'tempat_lahir' => 'Yogyakarta', 'tanggal_lahir' => '2011-11-02', 'tahun_masuk' => 2023],
+            ['nisn' => '0084567890', 'rfid_tag' => '4082910', 'nama' => 'Dewi Lestari', 'kelas' => '9A', 'gender' => 'P', 'tempat_lahir' => 'Semarang', 'tanggal_lahir' => '2012-01-15', 'tahun_masuk' => 2024],
+            ['nisn' => '0086789012', 'rfid_tag' => '6012938', 'nama' => 'Anisa Rahmawati', 'kelas' => '9B', 'gender' => 'P', 'tempat_lahir' => 'Medan', 'tanggal_lahir' => '2012-06-30', 'tahun_masuk' => 2024],
         ];
 
         foreach ($siswas as $s) {
             $kelas = Kelas::firstOrCreate(['nama' => $s['kelas']]);
             Siswa::updateOrCreate(['nisn' => $s['nisn']], [
                 'rfid_tag' => $s['rfid_tag'], 'nama' => $s['nama'], 'kelas_id' => $kelas->id, 'gender' => $s['gender'],
+                'tempat_lahir' => $s['tempat_lahir'], 'tanggal_lahir' => $s['tanggal_lahir'], 'tahun_masuk' => $s['tahun_masuk'],
             ]);
         }
 

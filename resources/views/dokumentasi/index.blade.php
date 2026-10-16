@@ -3,7 +3,7 @@
 @section('content')
 <div class="bg-slate-800/80 border border-slate-700 rounded-2xl p-5">
   <div class="flex items-center gap-1 bg-slate-900/80 p-1 rounded-xl border border-slate-700/60 overflow-x-auto text-xs font-semibold mb-5">
-    @foreach ([['dashboard', 'Dashboard'], ['siswa', 'Siswa'], ['kelas', 'Kelas'], ['laporan', 'Laporan'], ['whatsapp', 'Whatsapp'], ['pengaturan', 'Pengaturan']] as [$v, $label])
+    @foreach ([['dashboard', 'Dashboard'], ['siswa', 'Siswa'], ['kartu-pelajar', 'Kartu Pelajar'], ['kelas', 'Kelas'], ['laporan', 'Laporan'], ['whatsapp', 'Whatsapp'], ['pengaturan', 'Pengaturan']] as [$v, $label])
     <a href="{{ route('dokumentasi.index', ['tab' => $v]) }}" class="px-3 py-1.5 rounded-lg whitespace-nowrap {{ $tab === $v ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white' }}">{{ $label }}</a>
     @endforeach
   </div>
@@ -52,8 +52,8 @@
     <div>
       <h3 class="text-sm font-semibold text-white mb-2">Fungsi</h3>
       <ul class="list-disc pl-5 flex flex-col gap-1.5 text-[13px]">
-        <li><span class="text-white font-medium">Tabel siswa</span> — kolom Nama, NISN/RFID, Kelas, No HP Ortu/Wali, dan Gender. Mendukung pencarian dan pagination 10 baris per halaman.</li>
-        <li><span class="text-white font-medium">Tambah Siswa</span> — form NISN (angka, maks 10 digit), RFID Tag (dicek duplikat otomatis saat mengetik), Nama, Kelas, Gender, dan Nomor HP Orang Tua/Wali (opsional, dipakai untuk notifikasi WhatsApp absensi).</li>
+        <li><span class="text-white font-medium">Tabel siswa</span> — kolom Nama, NISN/RFID, TTL/Tahun Masuk, Kelas, No HP Ortu/Wali, dan Gender. Mendukung pencarian dan pagination 10 baris per halaman.</li>
+        <li><span class="text-white font-medium">Tambah Siswa</span> — form NISN (angka, maks 10 digit), RFID Tag (dicek duplikat otomatis saat mengetik), Nama, Tempat Lahir, Tanggal Lahir, Tahun Masuk (opsional), Pas Foto 3x4 (opsional, jpg/png/webp maks 300 Kb otomatis jadi WebP), Kelas, Gender, dan Nomor HP Orang Tua/Wali (opsional, dipakai untuk notifikasi WhatsApp absensi).</li>
         <li><span class="text-white font-medium">Template .xlsx</span> — unduh contoh file import yang benar.</li>
         <li><span class="text-white font-medium">Import .xlsx</span> — tambah/update ratusan siswa sekaligus. NISN yang sudah ada = data di-update, NISN baru = ditambah.</li>
         <li><span class="text-white font-medium">Edit/Hapus</span> — ubah data atau hapus siswa (menghapus juga seluruh riwayat absensinya).</li>
@@ -63,7 +63,7 @@
       <h3 class="text-sm font-semibold text-white mb-2">Cara penggunaan</h3>
       <ol class="list-decimal pl-5 flex flex-col gap-1.5 text-[13px]">
         <li><span class="text-white font-medium">Tambah satu siswa:</span> klik + Tambah Siswa → isi semua field → wajib pilih Kelas (buat dulu di menu Kelas bila kosong) → Simpan.</li>
-        <li><span class="text-white font-medium">Import massal:</span> klik Template .xlsx → isi baris sesuai contoh dengan kolom <span class="font-mono text-slate-200">NISN | RFID_TAG | NAMA | KELAS | GENDER (L/P) | NO_HP_ORTU</span> → upload lewat form Import .xlsx → periksa ringkasan "ok/gagal" dan daftar baris yang gagal.</li>
+        <li><span class="text-white font-medium">Import massal:</span> klik Template .xlsx → isi baris sesuai contoh dengan kolom <span class="font-mono text-slate-200">NISN | RFID_TAG | NAMA | KELAS | GENDER (L/P) | NO_HP_ORTU | TEMPAT_LAHIR | TANGGAL_LAHIR | TAHUN_MASUK</span> → upload lewat form Import .xlsx → periksa ringkasan "ok/gagal" dan daftar baris yang gagal.</li>
         <li><span class="text-white font-medium">Kelas baru saat import:</span> nama kelas yang belum ada otomatis dibuatkan.</li>
         <li><span class="text-white font-medium">No HP ortu:</span> isi dengan format 08xx atau 628xx (contoh 6281234567890). Boleh dikosongkan, tetapi siswa tersebut tidak akan menerima notifikasi WhatsApp.</li>
       </ol>
@@ -72,8 +72,31 @@
       <p class="font-semibold text-amber-200 mb-1.5">Aturan validasi import</p>
       <ul class="list-disc pl-5 flex flex-col gap-1 text-amber-100/90">
         <li>NISN wajib angka maks 10 digit; RFID tidak boleh dipakai siswa lain.</li>
-        <li>Gender hanya L atau P; baris tak lengkap ditolak dengan keterangan nomor barisnya.</li>
+        <li>Gender hanya L atau P; Tempat/Tanggal Lahir & Tahun Masuk opsional (Tanggal format YYYY-MM-DD, Tahun 2000-2100); baris tak lengkap ditolak dengan keterangan nomor barisnya.</li>
       </ul>
+    </div>
+
+  @elseif ($tab === 'kartu-pelajar')
+    <div>
+      <h2 class="text-base font-semibold text-white mb-1">Menu Kartu Pelajar</h2>
+      <p class="text-[11px] text-slate-500">Pilih siswa lalu cetak kartu pelajar ukuran KTP di kertas A4.</p>
+    </div>
+    <div>
+      <h3 class="text-sm font-semibold text-white mb-2">Fungsi</h3>
+      <ul class="list-disc pl-5 flex flex-col gap-1.5 text-[13px]">
+        <li><span class="text-white font-medium">Pilih siswa</span> — cari nama/NISN, saring per kelas, centang satu/bulk, atau klik Cetak per baris.</li>
+        <li><span class="text-white font-medium">Pas foto 3x4</span> — upload lewat tombol 📷 Foto di menu ini atau form Tambah/Edit Siswa (jpg/png/webp maks 300 Kb, otomatis dikonversi ke WebP agar kecil). Kosong = tampil inisial nama.</li>
+        <li><span class="text-white font-medium">Halaman cetak</span> — terbuka di tab baru, 1 siswa = 1 lembar A4 berisi kartu <span class="text-white font-medium">Depan di kiri</span> dan <span class="text-white font-medium">Belakang di kanan</span>, ukuran KTP 85.6 × 53.98 mm dengan sudut lengkung.</li>
+        <li><span class="text-white font-medium">Isi kartu</span> — Depan (kop atas): judul Kartu Pelajar, nama + alamat institusi, lalu pas foto 3x4 di kiri dan Nama, Tempat/Tanggal Lahir, NISN, Tahun Masuk. Belakang: tata tertib pemegang kartu + tanda tangan Kepala Sekolah (nama & NIP dari Pengaturan → Institusi).</li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="text-sm font-semibold text-white mb-2">Cara penggunaan</h3>
+      <ol class="list-decimal pl-5 flex flex-col gap-1.5 text-[13px]">
+        <li>Pastikan <span class="text-white font-medium">Pengaturan → Institusi</span> (logo, nama, alamat) sudah terisi.</li>
+        <li>Buka <span class="text-white font-medium">Kartu Pelajar</span> → lengkapi pas foto bila perlu → centang siswa → Cetak Terpilih (atau Cetak per baris).</li>
+        <li>Di halaman cetak klik <span class="text-white font-medium">Cetak / Simpan PDF</span> → pilih kertas A4, margin default, aktifkan background graphics agar warna kartu ikut tercetak.</li>
+      </ol>
     </div>
 
   @elseif ($tab === 'kelas')
@@ -184,7 +207,7 @@
     <div>
       <h3 class="text-sm font-semibold text-white mb-2">Fungsi tiap tab</h3>
       <ul class="list-disc pl-5 flex flex-col gap-1.5 text-[13px]">
-        <li><span class="text-white font-medium">Institusi</span> — Nama, Alamat, No HP, dan Logo sekolah. Nama tampil di sidebar dan laporan; logo tampil di sidebar dan favicon browser.</li>
+        <li><span class="text-white font-medium">Institusi</span> — Nama, Alamat, No HP, Nama & NIP Kepala Sekolah, Logo, TTD Kepala Sekolah, dan Stempel sekolah (TTD & stempel diupload base64 dengan preview). Nama tampil di sidebar dan laporan; logo tampil di sidebar dan favicon browser; nama, NIP, TTD & stempel tampil sebagai tanda tangan di belakang kartu pelajar.</li>
         <li><span class="text-white font-medium">Waktu Absensi</span> — 6 batas jam (Masuk Mulai/Selesai, Terlambat Mulai/Selesai, Pulang Mulai/Selesai, format HH:MM). Menentukan status Tepat Waktu/Terlambat, kapan tap Pulang diterima, dan kapan input dikunci.</li>
         <li><span class="text-white font-medium">Update GitHub</span> — simpan Repository (owner/repo), Branch, dan Token, lalu klik Perbarui Sekarang untuk menarik kode terbaru dari GitHub (git fetch + reset). Token tidak disimpan di log maupun config git.</li>
         <li><span class="text-white font-medium">Perawatan</span> — Bersihkan Cache, Migrasi DB, Symlink Storage, dan <span class="text-white font-medium">Jalankan Antrean</span> (memproses jobs WhatsApp yang tertunda, berhenti saat kosong, maks 55 detik). Panel statistik menampilkan jumlah jobs antre, jobs gagal, dan notifikasi antre.</li>

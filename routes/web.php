@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DokumentasiController;
+use App\Http\Controllers\KartuPelajarController;
 use App\Http\Controllers\KelasController;
 use App\Http\Controllers\LaporanController;
 use App\Http\Controllers\PengaturanController;
@@ -77,6 +78,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/whatsapp/ping', [WhatsappController::class, 'ping'])->name('whatsapp.ping');
     Route::post('/whatsapp/cek-cron', [WhatsappController::class, 'cek'])->name('whatsapp.cek');
     Route::delete('/whatsapp/log', [WhatsappController::class, 'hapusLog'])->name('whatsapp.log-hapus');
+    Route::get('/kartu-pelajar', [KartuPelajarController::class, 'index'])->name('kartu-pelajar.index');
+    Route::get('/kartu-pelajar/cetak', [KartuPelajarController::class, 'cetak'])->name('kartu-pelajar.cetak');
+    Route::post('/kartu-pelajar/foto/{siswa}', [KartuPelajarController::class, 'foto'])->name('kartu-pelajar.foto');
     Route::get('/dokumentasi', [DokumentasiController::class, 'index'])->name('dokumentasi.index');
     Route::get('/profil', [ProfilController::class, 'show'])->name('profil');
     Route::put('/profil', [ProfilController::class, 'update'])->name('profil.update');

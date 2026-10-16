@@ -10,7 +10,9 @@ class Siswa extends Model
 {
     protected $table = 'tb_siswa';
 
-    protected $fillable = ['nisn', 'rfid_tag', 'nama', 'kelas_id', 'gender', 'no_hp_ortu'];
+    protected $fillable = ['nisn', 'rfid_tag', 'nama', 'tempat_lahir', 'tanggal_lahir', 'tahun_masuk', 'foto', 'kelas_id', 'gender', 'no_hp_ortu'];
+
+    protected $casts = ['tanggal_lahir' => 'date', 'tahun_masuk' => 'integer'];
 
     public function kelas(): BelongsTo
     {

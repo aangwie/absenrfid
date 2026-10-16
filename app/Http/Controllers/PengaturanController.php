@@ -18,6 +18,8 @@ class PengaturanController extends Controller
         }
         $def = [
             'nama_institusi' => '', 'alamat' => '', 'no_hp' => '',
+            'nama_kepala_sekolah' => '', 'nip_kepala_sekolah' => '',
+            'ttd_kepala_sekolah' => '', 'stempel_sekolah' => '',
             'masuk_mulai' => '06:30', 'masuk_selesai' => '07:30',
             'terlambat_mulai' => '07:31', 'terlambat_selesai' => '13:29',
             'pulang_mulai' => '13:30', 'pulang_selesai' => '14:30',
@@ -44,18 +46,24 @@ class PengaturanController extends Controller
             'nama_institusi' => ['required', 'string', 'max:255'],
             'alamat' => ['required', 'string', 'max:500'],
             'no_hp' => ['required', 'string', 'max:20'],
+            'nama_kepala_sekolah' => ['nullable', 'string', 'max:100'],
+            'nip_kepala_sekolah' => ['nullable', 'string', 'max:30'],
             'logo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:400'],
+            'ttd' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:400'],
+            'stempel' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:400'],
         ], ['*.required' => 'Lengkapi Nama Institusi, Alamat, dan Nomor HP.']);
 
-        foreach (['nama_institusi' => $data['nama_institusi'], 'alamat' => $data['alamat'], 'no_hp' => $data['no_hp']] as $k => $v) {
+        foreach (['nama_institusi' => $data['nama_institusi'], 'alamat' => $data['alamat'], 'no_hp' => $data['no_hp'], 'nama_kepala_sekolah' => trim((string) ($data['nama_kepala_sekolah'] ?? '')), 'nip_kepala_sekolah' => trim((string) ($data['nip_kepala_sekolah'] ?? ''))] as $k => $v) {
             DB::table('tb_pengaturan')->updateOrInsert(['kunci' => $k], ['nilai' => trim($v), 'updated_at' => now(), 'created_at' => now()]);
         }
-        if ($request->boolean('hapus_logo')) {
-            DB::table('tb_pengaturan')->where('kunci', 'logo_sekolah')->delete();
-        } elseif ($request->hasFile('logo')) {
-            $f = $request->file('logo');
-            $b64 = 'data:' . $f->getMimeType() . ';base64,' . base64_encode(file_get_contents($f->getRealPath()));
-            DB::table('tb_pengaturan')->updateOrInsert(['kunci' => 'logo_sekolah'], ['nilai' => $b64, 'updated_at' => now(), 'created_at' => now()]);
+        foreach ([['logo', 'logo_sekolah', 'hapus_logo'], ['ttd', 'ttd_kepala_sekolah', 'hapus_ttd'], ['stempel', 'stempel_sekolah', 'hapus_stempel']] as [$input, $kunci, $hapus]) {
+            if ($request->boolean($hapus)) {
+                DB::table('tb_pengaturan')->where('kunci', $kunci)->delete();
+            } elseif ($request->hasFile($input)) {
+                $f = $request->file($input);
+                $b64 = 'data:' . $f->getMimeType() . ';base64,' . base64_encode(file_get_contents($f->getRealPath()));
+                DB::table('tb_pengaturan')->updateOrInsert(['kunci' => $kunci], ['nilai' => $b64, 'updated_at' => now(), 'created_at' => now()]);
+            }
         }
 
         return redirect()->route('pengaturan.index', ['tab' => 'institusi'])->with('ok', 'Data institusi tersimpan.');
