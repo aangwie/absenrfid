@@ -9,6 +9,7 @@ use App\Http\Controllers\LaporanController;
 use App\Http\Controllers\PengaturanController;
 use App\Http\Controllers\ProfilController;
 use App\Http\Controllers\SiswaController;
+use App\Http\Controllers\UserController;
 use App\Http\Controllers\WhatsappController;
 use Illuminate\Support\Facades\Route;
 
@@ -78,6 +79,10 @@ Route::middleware('auth')->group(function () {
     Route::post('/whatsapp/ping', [WhatsappController::class, 'ping'])->name('whatsapp.ping');
     Route::post('/whatsapp/cek-cron', [WhatsappController::class, 'cek'])->name('whatsapp.cek');
     Route::delete('/whatsapp/log', [WhatsappController::class, 'hapusLog'])->name('whatsapp.log-hapus');
+    Route::get('/users', [UserController::class, 'index'])->name('users.index');
+    Route::post('/users', [UserController::class, 'store'])->name('users.store');
+    Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
+    Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
     Route::get('/kartu-pelajar', [KartuPelajarController::class, 'index'])->name('kartu-pelajar.index');
     Route::get('/kartu-pelajar/cetak', [KartuPelajarController::class, 'cetak'])->name('kartu-pelajar.cetak');
     Route::get('/kartu-pelajar/ekspor-gambar', [KartuPelajarController::class, 'eksporGambar'])->name('kartu-pelajar.ekspor-gambar');

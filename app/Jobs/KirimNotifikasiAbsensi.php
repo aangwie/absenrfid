@@ -112,4 +112,15 @@ class KirimNotifikasiAbsensi implements ShouldQueue
 
         return "{$kepala} {$siswa->nama} ({$siswa->nisn}, {$kelas}) {$aksi} pada {$tanggal} pukul {$waktu} ({$status}).";
     }
+
+    /** Pesan untuk penandaan manual dari /laporan (Belum Absen). */
+    public static function susunPesanTandai(Siswa $siswa, string $status, string $jam, string $tanggal): string
+    {
+        $institusi = trim(Pengaturan::nilai('nama_institusi'));
+        $kepala = $institusi !== '' ? "[Absensi {$institusi}]" : '[Absensi RFID]';
+        $kelas = $siswa->kelas->nama ?? '-';
+        $waktu = $jam !== '' ? ' pukul ' . substr($jam, 0, 5) : '';
+
+        return "{$kepala} {$siswa->nama} ({$siswa->nisn}, {$kelas}) ditandai {$status} pada {$tanggal}{$waktu}.";
+    }
 }

@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\KirimNotifikasiAbsensi;
 use App\Models\Absensi;
+use App\Models\NotifikasiLog;
 use App\Models\Siswa;
 use Illuminate\Http\Request;
 use ZipArchive;
@@ -145,7 +147,52 @@ class LaporanController extends Controller
         }
         $absen->save();
 
-        return redirect()->route('laporan.index', ['mode' => 'harian', 'tanggal' => $data['tanggal']])->with('ok', 'Status diubah jadi ' . $st . '.');
+        $siswa = Siswa::with('kelas')->where('nisn', $data['nisn'])->first();
+        $waHasil = '';
+        if ($siswa) {
+            $jam = $absen->jam_masuk ? (string) $absen->jam_masuk : '';
+            $waHasil = $this->antrekanNotifikasi($siswa, $data['tanggal'], $jam, $st);
+        }
+
+        $pesan = 'Status diubah jadi ' . $st . '.';
+        if ($waHasil !== '') {
+            $pesan .= ' WhatsApp ' . $waHasil . ' dikirim.';
+        }
+
+        return redirect()->route('laporan.index', ['mode' => 'harian', 'tanggal' => $data['tanggal']])->with('ok', $pesan);
+    }
+
+    /**
+     * Catat notifikasi WA untuk aksi Tandai di /laporan (Belum Absen).
+     */
+    private function antrekanNotifikasi(Siswa $siswa, string $tanggal, string $jam, string $status): string
+    {
+        try {
+            $tujuan = KirimNotifikasiAbsensi::normalisasiNomor($siswa->no_hp_ortu);
+            $pesan = KirimNotifikasiAbsensi::susunPesanTandai($siswa, $status, $jam, $tanggal);
+            $log = NotifikasiLog::create([
+                'nisn' => $siswa->nisn,
+                'tanggal' => $tanggal,
+                'tipe' => 'masuk',
+                'nomor_tujuan' => $tujuan !== '' ? $tujuan : trim((string) $siswa->no_hp_ortu),
+                'pesan' => $pesan,
+                'status' => 'antre',
+            ]);
+            if ($tujuan === '') {
+                $log->update(['status' => 'gagal', 'respons' => 'Nomor HP ortu/wali kosong atau tidak valid.', 'sent_at' => now()]);
+
+                return 'gagal';
+            }
+            // Kirim seketika agar hasil bisa ditampilkan pada toast.
+            (new KirimNotifikasiAbsensi($log->id))->handle();
+            $log->refresh();
+
+            return $log->status === 'terkirim' ? 'berhasil' : 'gagal';
+        } catch (\Throwable $e) {
+            report($e);
+
+            return 'gagal';
+        }
     }
 
     public function ekspor(Request $request)
