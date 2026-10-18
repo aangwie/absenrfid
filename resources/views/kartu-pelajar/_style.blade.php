@@ -241,7 +241,6 @@
       min-width: 0;
       font-size: 6.6pt;
       line-height: 1.35;
-      padding-right: 13mm;
     }
 
     .rows .nama {
@@ -287,6 +286,12 @@
       font-weight: 700;
       color: #0f172a;
       overflow-wrap: break-word;
+    }
+
+    /* Hanya baris yang sejajar kotak QR (ke-3 & ke-4) yang dikosongkan kanannya;
+       baris TTL/NISN di atas QR boleh memakai lebar penuh. */
+    .biodata tr:nth-child(n+3) .v {
+      padding-right: 13mm;
     }
 
     .back-title {
