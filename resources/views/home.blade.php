@@ -167,7 +167,7 @@
         <p className="text-xs text-slate-400 mb-3">Tempelkan kartu pada reader USB — ID terbaca otomatis sebagai keyboard + Enter. Di HP Android (Chrome) bisa juga pakai tombol Scan NFC HP. Jam buka ${jamBuka}.</p>
         ${boleh ? null : html`<div className="bg-rose-500/15 border border-rose-500/40 text-rose-200 text-xs rounded-xl px-4 py-3 mb-3">Di luar jam absensi (${jamNow}). Input dikunci — jam buka ${jamBuka}.</div>`}
         <form onSubmit=${e => { e.preventDefault(); tap(rfid); }} className="relative">
-          <input ref=${ref} value=${rfid} onInput=${e => setRfid(e.target.value)} placeholder=${boleh ? 'Tempelkan kartu RFID di sini...' : 'Di luar jam absensi — input dikunci...'} disabled=${!boleh}
+          <input ref=${ref} type="password" autoComplete="off" spellCheck="false" value=${rfid} onInput=${e => setRfid(e.target.value)} placeholder=${boleh ? 'Tempelkan kartu RFID di sini...' : 'Di luar jam absensi — input dikunci...'} disabled=${!boleh}
             className=${'w-full bg-slate-900/90 border-2 rounded-xl px-4 py-3.5 text-white font-mono focus:outline-none ' + (boleh ? 'border-indigo-500/50' : 'border-slate-700 opacity-50 cursor-not-allowed')} />
           <button disabled=${!boleh} className="absolute right-2 top-1/2 -translate-y-1/2 bg-indigo-600 text-white text-xs font-semibold px-4 py-2 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed">Proses Tap</button>
         </form>

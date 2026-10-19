@@ -541,7 +541,9 @@ export default function App() {
             <form onSubmit={handleRfidSubmit} className="relative">
               <input
                 ref={rfidInputRef}
-                type="text"
+                type="password"
+                autoComplete="off"
+                spellCheck={false}
                 value={rfidInput}
                 onChange={(e) => setRfidInput(e.target.value)}
                 placeholder="Tempelkan kartu RFID atau ketik ID: 2234749610 lalu tekan Enter..."
