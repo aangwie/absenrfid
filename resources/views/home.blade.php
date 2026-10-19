@@ -22,6 +22,25 @@
     const dalam = (jam, mulai, selesai) => { const j = (jam || '').slice(0, 5); return mulai && selesai && j >= mulai && j <= selesai; };
     const bolehJam = (jam) => dalam(jam, R.masuk_mulai, R.masuk_selesai) || dalam(jam, R.terlambat_mulai, R.terlambat_selesai) || dalam(jam, R.pulang_mulai, R.pulang_selesai);
 
+    // Nomor halaman yang tampil: maks 5 nomor di sekitar halaman aktif + elipsis.
+    function nomorHalaman(aktif, total) {
+        const jendela = 5;
+        let mulai = Math.max(1, aktif - Math.floor(jendela / 2));
+        let selesai = Math.min(total, mulai + jendela - 1);
+        mulai = Math.max(1, selesai - jendela + 1);
+        const hasil = [];
+        if (mulai > 1) {
+            hasil.push(1);
+            if (mulai > 2) hasil.push('…');
+        }
+        for (let n = mulai; n <= selesai; n++) hasil.push(n);
+        if (selesai < total) {
+            if (selesai < total - 1) hasil.push('…');
+            hasil.push(total);
+        }
+        return hasil;
+    }
+
     function App() {
         const [students, setStudents] = useState(window.__SISWA__ || []);
         const [rfid, setRfid] = useState('');
@@ -123,10 +142,12 @@
         const pulang = students.filter(s => s.jam_pulang).length;
         const telat = students.filter(s => s.status_masuk === 'Terlambat').length;
         const q = query.toLowerCase();
-        const filtered = students.filter(s => !q || s.nama.toLowerCase().includes(q) || s.nisn.includes(q) || s.rfid_tag.includes(q) || s.kelas.toLowerCase().includes(q));
+        const filtered = students.filter(s => !q || s.nama.toLowerCase().includes(q) || s.nisn.includes(q) || s.rfid_tag.includes(q) || (s.kelas || '').toLowerCase().includes(q));
         const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
         const safePage = Math.min(page, totalPages);
         const rows = filtered.slice((safePage - 1) * perPage, safePage * perPage);
+        const dariData = filtered.length ? (safePage - 1) * perPage + 1 : 0;
+        const sampaiData = Math.min(safePage * perPage, filtered.length);
         return html`<div className="flex flex-col gap-6">
     <header className="bg-slate-800/90 border border-slate-700 rounded-2xl p-4 sm:p-6 shadow-xl flex flex-col lg:flex-row items-center justify-between gap-4">
       <div className="flex items-center gap-4">
@@ -168,11 +189,13 @@
       </div>
       <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="text-slate-400 border-b border-slate-700"><th className="text-left py-2 px-2">Nama / NISN</th><th className="text-left py-2 px-2">Kelas</th><th className="text-center py-2 px-2">Masuk</th><th className="text-center py-2 px-2">Pulang</th><th className="text-center py-2 px-2">Status</th></tr></thead>
       <tbody>${rows.length ? rows.map(s => { const st = (s.status_masuk === 'Sakit' || s.status_masuk === 'Izin' || s.status_masuk === 'Ijin') ? html`<span className="bg-sky-500/20 text-sky-300 border border-sky-500/40 px-2 py-0.5 rounded-full text-[11px]">${s.status_masuk}</span>` : s.status_masuk === 'Tanpa Keterangan' ? html`<span className="bg-slate-600/40 text-slate-300 border border-slate-600 px-2 py-0.5 rounded-full text-[11px]">Tanpa Keterangan</span>` : s.jam_pulang ? html`<span className="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full text-[11px]">Pulang</span>` : (s.jam_masuk || s.status_masuk === 'Di Sekolah') ? html`<span className="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full text-[11px]">Di Sekolah</span>` : html`<span className="bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded-full text-[11px]">Belum Absen</span>`; return html`<tr key=${s.nisn} className="border-b border-slate-700/50"><td className="py-2.5 px-2"><div className="font-semibold text-white">${s.nama}</div><div className="font-mono text-slate-500 text-[11px]">${s.nisn} • ${s.rfid_tag}</div></td><td className="py-2.5 px-2 text-slate-300">${s.kelas}</td><td className="py-2.5 px-2 text-center font-mono text-emerald-300">${s.jam_masuk || '-'}</td><td className="py-2.5 px-2 text-center font-mono text-indigo-300">${s.jam_pulang || '-'}</td><td className="py-2.5 px-2 text-center">${st}</td></tr>`; }) : html`<tr><td colSpan="5" className="py-8 text-center text-slate-500">Tidak ada data cocok.</td></tr>`}</tbody></table></div>
-      <div className="flex items-center justify-between mt-3 text-xs text-slate-400">
-        <span>Menampilkan ${rows.length} dari ${filtered.length} data • Hal ${safePage}/${totalPages}</span>
-        <div className="flex gap-1">
+      <div className="flex flex-wrap items-center justify-between gap-2 mt-3 text-xs text-slate-400">
+        <span>Menampilkan ${dariData}–${sampaiData} dari ${filtered.length} data • Hal ${safePage}/${totalPages}</span>
+        <div className="flex flex-wrap gap-1">
           <button disabled=${safePage <= 1} onClick=${() => setPage(safePage - 1)} className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 disabled:opacity-40">‹ Prev</button>
-          ${Array.from({ length: totalPages }, (_, i) => i + 1).slice(0, 5).map(n => html`<button key=${n} onClick=${() => setPage(n)} className=${'px-3 py-1.5 rounded-lg border ' + (n === safePage ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-900 border-slate-700')}>${n}</button>`)}
+          ${nomorHalaman(safePage, totalPages).map((n, i) => n === '…'
+            ? html`<span key=${'e' + i} className="px-2 py-1.5 text-slate-500">…</span>`
+            : html`<button key=${'p' + n} onClick=${() => setPage(n)} className=${'px-3 py-1.5 rounded-lg border ' + (n === safePage ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-900 border-slate-700')}>${n}</button>`)}
           <button disabled=${safePage >= totalPages} onClick=${() => setPage(safePage + 1)} className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 disabled:opacity-40">Next ›</button>
         </div>
       </div>
