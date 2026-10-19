@@ -15,6 +15,11 @@ class KartuPelajarController extends Controller
         if (Kelas::count() === 0) {
             return response()->view('siswa.need-kelas');
         }
+        $perPage = (int) $request->input('per_page', 10);
+        if (! in_array($perPage, [10, 15, 20, 50, 100], true)) {
+            $perPage = 10;
+        }
+
         $siswas = Siswa::with('kelas')
             ->leftJoin('tb_kelas as k', 'k.id', '=', 'tb_siswa.kelas_id')
             ->when($request->filled('kelas_id'), fn ($q) => $q->where('tb_siswa.kelas_id', $request->kelas_id))
@@ -24,7 +29,7 @@ class KartuPelajarController extends Controller
                     ->orWhere('k.nama', 'like', "%{$request->q}%");
             }))
             ->select('tb_siswa.*')
-            ->orderBy('k.nama')->orderBy('tb_siswa.nama')->paginate(15)->withQueryString();
+            ->orderBy('k.nama')->orderBy('tb_siswa.nama')->paginate($perPage)->withQueryString();
 
         return view('kartu-pelajar.index', ['siswas' => $siswas, 'kelasList' => Kelas::orderBy('nama')->get()]);
     }

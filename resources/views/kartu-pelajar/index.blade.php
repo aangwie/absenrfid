@@ -56,7 +56,16 @@
   </table></div>
   <div class="flex flex-col sm:flex-row items-center justify-between gap-2 mt-4 text-xs text-slate-400">
     <span>{{ $siswas->total() > 0 ? 'Menampilkan '.$siswas->firstItem().'–'.$siswas->lastItem().' dari '.$siswas->total().' data' : 'Tidak ada data' }}</span>
-    @include('partials.paginasi', ['pg' => $siswas])
+    <div class="flex items-center gap-1">
+      <form method="GET" class="flex items-center gap-1">
+        @if (request()->filled('q'))<input type="hidden" name="q" value="{{ request('q') }}">@endif
+        @if (request()->filled('kelas_id'))<input type="hidden" name="kelas_id" value="{{ request('kelas_id') }}">@endif
+        <select name="per_page" onchange="this.form.submit()" title="Jumlah data per halaman" aria-label="Jumlah data per halaman" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500">
+          @foreach ([10, 15, 20, 50, 100] as $n)<option value="{{ $n }}" @selected($siswas->perPage() == $n)>{{ $n }}</option>@endforeach
+        </select>
+      </form>
+      @include('partials.paginasi', ['pg' => $siswas])
+    </div>
   </div>
   <p class="text-[11px] text-slate-500 mt-3">Logo, nama & alamat institusi diambil dari Pengaturan → Institusi. Pas foto bisa diupload lewat tombol 📷 Foto atau form Siswa (jpg/png/webp maks 300 Kb, otomatis dikonversi ke WebP). Foto kosong = tampil inisial nama di kartu.</p>
 </div>
