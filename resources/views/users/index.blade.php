@@ -69,12 +69,8 @@
   </table></div>
 
   <div class="flex flex-col sm:flex-row items-center justify-between gap-2 mt-4 text-xs text-slate-400">
-    <span>Menampilkan {{ $users->firstItem() ?? 0 }}-{{ $users->lastItem() ?? 0 }} dari {{ $users->total() }} data • Hal {{ $users->currentPage() }}/{{ $users->lastPage() }}</span>
-    <div class="flex items-center gap-1">
-      @if ($users->onFirstPage())<span class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 opacity-40">‹ Prev</span>@else<a href="{{ $users->previousPageUrl() }}" class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 hover:border-indigo-500">‹ Prev</a>@endif
-      @foreach ($users->getUrlRange(max(1, $users->currentPage() - 2), min($users->lastPage(), $users->currentPage() + 2)) as $p => $u)@if ($p == $users->currentPage())<span class="px-3 py-1.5 rounded-lg border bg-indigo-600 text-white border-indigo-600">{{ $p }}</span>@else<a href="{{ $u }}" class="px-3 py-1.5 rounded-lg border bg-slate-900 border-slate-700 hover:border-indigo-500">{{ $p }}</a>@endif @endforeach
-      @if ($users->hasMorePages())<a href="{{ $users->nextPageUrl() }}" class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 hover:border-indigo-500">Next ›</a>@else<span class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 opacity-40">Next ›</span>@endif
-    </div>
+    <span>{{ $users->total() > 0 ? 'Menampilkan '.$users->firstItem().'–'.$users->lastItem().' dari '.$users->total().' data' : 'Tidak ada data' }}</span>
+    @include('partials.paginasi', ['pg' => $users])
   </div>
 </div>
 

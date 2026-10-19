@@ -1,4 +1,4 @@
-{{-- Paginasi sederhana: ‹ 1 2 … 9 10 › — dipakai untuk paginator Laravel (mis. halaman Laporan). --}}
+{{-- Paginasi sederhana: [ikon panah kiri] 1 2 … 9 10 [ikon panah kanan] — chevron SVG, untuk paginator Laravel (mis. halaman Laporan). --}}
 @php
     $cur = (int) $pg->currentPage();
     $last = max(1, (int) $pg->lastPage());
@@ -17,13 +17,16 @@
         $nomor[] = $last;
     }
     $dasar = 'inline-flex items-center px-3 py-1.5 rounded-lg border text-xs';
+    $ikon = 'inline-flex items-center px-2.5 py-1.5 rounded-lg border text-xs';
+    $panahKiri = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>';
+    $panahKanan = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>';
 @endphp
 @if ($last > 1)
 <div class="flex flex-wrap items-center gap-1">
   @if ($cur > 1)
-  <a href="{{ $pg->url($cur - 1) }}" rel="prev" aria-label="Sebelumnya" class="{{ $dasar }} bg-slate-900 border-slate-700 text-slate-200 hover:border-indigo-500">‹</a>
+  <a href="{{ $pg->url($cur - 1) }}" rel="prev" aria-label="Sebelumnya" class="{{ $ikon }} bg-slate-900 border-slate-700 text-slate-200 hover:border-indigo-500">{!! $panahKiri !!}</a>
   @else
-  <span aria-hidden="true" class="{{ $dasar }} bg-slate-900 border-slate-700 text-slate-200 opacity-40">‹</span>
+  <span aria-hidden="true" class="{{ $ikon }} bg-slate-900 border-slate-700 text-slate-200 opacity-40">{!! $panahKiri !!}</span>
   @endif
   @foreach ($nomor as $n)
     @if ($n === '…')
@@ -35,9 +38,9 @@
     @endif
   @endforeach
   @if ($cur < $last)
-  <a href="{{ $pg->url($cur + 1) }}" rel="next" aria-label="Berikutnya" class="{{ $dasar }} bg-slate-900 border-slate-700 text-slate-200 hover:border-indigo-500">›</a>
+  <a href="{{ $pg->url($cur + 1) }}" rel="next" aria-label="Berikutnya" class="{{ $ikon }} bg-slate-900 border-slate-700 text-slate-200 hover:border-indigo-500">{!! $panahKanan !!}</a>
   @else
-  <span aria-hidden="true" class="{{ $dasar }} bg-slate-900 border-slate-700 text-slate-200 opacity-40">›</span>
+  <span aria-hidden="true" class="{{ $ikon }} bg-slate-900 border-slate-700 text-slate-200 opacity-40">{!! $panahKanan !!}</span>
   @endif
 </div>
 @endif

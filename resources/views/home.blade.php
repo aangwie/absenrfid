@@ -192,11 +192,11 @@
       <div className="flex flex-wrap items-center justify-between gap-2 mt-3 text-xs text-slate-400">
         <span>Menampilkan ${dariData}–${sampaiData} dari ${filtered.length} data</span>
         <div className="flex flex-wrap gap-1">
-          <button disabled=${safePage <= 1} onClick=${() => setPage(safePage - 1)} className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 disabled:opacity-40">‹</button>
+          <button disabled=${safePage <= 1} onClick=${() => setPage(safePage - 1)} aria-label="Sebelumnya" className="inline-flex items-center px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 disabled:opacity-40"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg></button>
           ${nomorHalaman(safePage, totalPages).map((n, i) => n === '…'
             ? html`<span key=${'e' + i} className="px-2 py-1.5 text-slate-500">…</span>`
             : html`<button key=${'p' + n} onClick=${() => setPage(n)} className=${'px-3 py-1.5 rounded-lg border ' + (n === safePage ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-900 border-slate-700')}>${n}</button>`)}
-          <button disabled=${safePage >= totalPages} onClick=${() => setPage(safePage + 1)} className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 disabled:opacity-40">›</button>
+          <button disabled=${safePage >= totalPages} onClick=${() => setPage(safePage + 1)} aria-label="Berikutnya" className="inline-flex items-center px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 disabled:opacity-40"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg></button>
         </div>
       </div>
     </div>

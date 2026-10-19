@@ -55,11 +55,8 @@
     </tbody>
   </table></div>
   <div class="flex flex-col sm:flex-row items-center justify-between gap-2 mt-4 text-xs text-slate-400">
-    <span>Menampilkan {{ $siswas->firstItem() ?? 0 }}-{{ $siswas->lastItem() ?? 0 }} dari {{ $siswas->total() }} data • Hal {{ $siswas->currentPage() }}/{{ $siswas->lastPage() }}</span>
-    <div class="flex items-center gap-1">
-      @if ($siswas->onFirstPage())<span class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 opacity-40">‹ Prev</span>@else<a href="{{ $siswas->previousPageUrl() }}" class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 hover:border-indigo-500">‹ Prev</a>@endif
-      @if ($siswas->hasMorePages())<a href="{{ $siswas->nextPageUrl() }}" class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 hover:border-indigo-500">Next ›</a>@else<span class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 opacity-40">Next ›</span>@endif
-    </div>
+    <span>{{ $siswas->total() > 0 ? 'Menampilkan '.$siswas->firstItem().'–'.$siswas->lastItem().' dari '.$siswas->total().' data' : 'Tidak ada data' }}</span>
+    @include('partials.paginasi', ['pg' => $siswas])
   </div>
   <p class="text-[11px] text-slate-500 mt-3">Logo, nama & alamat institusi diambil dari Pengaturan → Institusi. Pas foto bisa diupload lewat tombol 📷 Foto atau form Siswa (jpg/png/webp maks 300 Kb, otomatis dikonversi ke WebP). Foto kosong = tampil inisial nama di kartu.</p>
 </div>
