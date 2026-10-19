@@ -14,17 +14,37 @@ class LaporanController extends Controller
     public function index(Request $request)
     {
         [$mode, $judul, $q] = $this->filterQuery($request);
+        // Pencarian per tabel: 'cari' untuk tabel sudah absen, 'cari_belum' untuk tabel belum absen.
+        $cari = trim((string) $request->input('cari', ''));
+        $cariBelum = trim((string) $request->input('cari_belum', ''));
+        if ($cari !== '') {
+            $q->where(function ($w) use ($cari) {
+                $w->where('nisn', 'like', "%{$cari}%")
+                    ->orWhereHas('siswa', fn ($s) => $s->where('nama', 'like', "%{$cari}%")->orWhere('rfid_tag', 'like', "%{$cari}%"))
+                    ->orWhereHas('siswa.kelas', fn ($k) => $k->where('nama', 'like', "%{$cari}%"));
+            });
+        }
         $rows = $q->orderBy('tanggal')->orderBy('jam_masuk')->paginate(15)->withQueryString();
         // ponytail: belum-absen hanya mode harian (1 query). Tambah periode/bulanan bila diminta.
         $belum = collect();
         if ($mode === 'harian') {
             $t = $request->date('tanggal')?->toDateString() ?? now()->toDateString();
             $ada = Absensi::whereDate('tanggal', $t)->pluck('nisn')->all();
-            $belum = Siswa::with('kelas')->when($ada, fn ($q2) => $q2->whereNotIn('nisn', $ada))->orderBy('nama')->get();
+            $belum = Siswa::with('kelas')->when($ada, fn ($q2) => $q2->whereNotIn('nisn', $ada))->orderBy('nama');
+            if ($cariBelum !== '') {
+                $belum->where(function ($w) use ($cariBelum) {
+                    $w->where('nama', 'like', "%{$cariBelum}%")
+                        ->orWhere('nisn', 'like', "%{$cariBelum}%")
+                        ->orWhere('rfid_tag', 'like', "%{$cariBelum}%")
+                        ->orWhereHas('kelas', fn ($k) => $k->where('nama', 'like', "%{$cariBelum}%"));
+                });
+            }
+            $belum = $belum->paginate(10, ['*'], 'page_belum')->withQueryString();
         }
 
         return view('laporan.index', [
             'rows' => $rows, 'mode' => $mode, 'judul' => $judul, 'belum' => $belum,
+            'cari' => $cari, 'cariBelum' => $cariBelum,
             'tanggal' => $request->input('tanggal', now()->toDateString()),
             'dari' => $request->input('dari', now()->toDateString()),
             'sampai' => $request->input('sampai', now()->toDateString()),
