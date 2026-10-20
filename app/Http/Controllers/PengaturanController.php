@@ -66,6 +66,8 @@ class PengaturanController extends Controller
             }
         }
 
+        Pengaturan::lupakan();
+
         return redirect()->route('pengaturan.index', ['tab' => 'institusi'])->with('ok', 'Data institusi tersimpan.');
     }
 
@@ -83,6 +85,8 @@ class PengaturanController extends Controller
         foreach ($data as $k => $v) {
             DB::table('tb_pengaturan')->updateOrInsert(['kunci' => $k], ['nilai' => $v, 'updated_at' => now(), 'created_at' => now()]);
         }
+
+        Pengaturan::lupakan();
 
         return redirect()->route('pengaturan.index', ['tab' => 'waktu'])->with('ok', 'Waktu absensi tersimpan.');
     }
@@ -104,6 +108,8 @@ class PengaturanController extends Controller
         foreach (['github_repo' => $repo, 'github_branch' => $branch, 'github_token' => trim($data['github_token'])] as $k => $v) {
             DB::table('tb_pengaturan')->updateOrInsert(['kunci' => $k], ['nilai' => $v, 'updated_at' => now(), 'created_at' => now()]);
         }
+
+        Pengaturan::lupakan();
 
         return redirect()->route('pengaturan.index', ['tab' => 'update'])->with('ok', 'Konfigurasi update tersimpan.');
     }
@@ -176,7 +182,9 @@ class PengaturanController extends Controller
                 }
                 $sebelum = DB::table('jobs')->count();
                 $log[] = "Antrean jobs sebelum: {$sebelum}. Menjalankan queue:work (berhenti saat kosong, maks 55 dtk)...";
+                Pengaturan::lupakan();
                 Artisan::call('queue:work', ['--stop-when-empty' => true, '--sleep' => 1, '--tries' => 3, '--max-time' => 55]);
+                Pengaturan::lupakan();
                 $out = trim(Artisan::output());
                 if ($out !== '') {
                     $log[] = $out;
@@ -233,6 +241,8 @@ class PengaturanController extends Controller
                 DB::transaction(fn () => array_map(fn ($s) => DB::unprepared($s), $batch));
             }
             DB::unprepared('SET FOREIGN_KEY_CHECKS=1;');
+            Pengaturan::lupakan();
+
             return redirect()->route('pengaturan.index', ['tab' => 'backup'])->with('ok', 'Import database selesai.');
         } catch (\Throwable $e) {
             DB::unprepared('SET FOREIGN_KEY_CHECKS=1;');

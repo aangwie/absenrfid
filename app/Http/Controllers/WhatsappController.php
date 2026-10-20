@@ -45,6 +45,8 @@ class WhatsappController extends Controller
             DB::table('tb_pengaturan')->updateOrInsert(['kunci' => $k], ['nilai' => $v, 'updated_at' => now(), 'created_at' => now()]);
         }
 
+        Pengaturan::lupakan();
+
         return redirect()->route('whatsapp.index', ['tab' => 'konfigurasi'])->with('ok', 'Konfigurasi WhatsApp tersimpan.');
     }
 

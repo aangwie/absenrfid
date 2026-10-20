@@ -20,7 +20,7 @@ class DashboardController extends Controller
                 ? response()->json(['ok' => false, 'pesan' => 'Tempel kartu / ketik NISN dulu.'], 422)
                 : back()->with('tap', ['ok' => false, 'pesan' => 'Tempel kartu / ketik NISN dulu.']);
         }
-        $siswa = Siswa::where('rfid_tag', $tag)->orWhere('nisn', $tag)->first();
+        $siswa = Siswa::with('kelas')->where('rfid_tag', $tag)->orWhere('nisn', $tag)->first();
         if (! $siswa) {
             return $request->wantsJson()
                 ? response()->json(['ok' => false, 'pesan' => "Kartu [$tag] tidak terdaftar!"], 404)
