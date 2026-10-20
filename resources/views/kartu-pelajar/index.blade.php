@@ -67,7 +67,7 @@
       @include('partials.paginasi', ['pg' => $siswas])
     </div>
   </div>
-  <p class="text-[11px] text-slate-500 mt-3">Logo, nama & alamat institusi diambil dari Pengaturan → Institusi. Pas foto bisa diupload lewat tombol 📷 Foto atau form Siswa (jpg/png/webp maks 300 Kb, otomatis dikonversi ke WebP dan disimpan di storage/app/public/foto). Foto kosong = tampil inisial nama di kartu. Agar foto terbaca di hosting, aktifkan Symlink Storage di Pengaturan → Perawatan.</p>
+  <p class="text-[11px] text-slate-500 mt-3">Logo, nama & alamat institusi diambil dari Pengaturan → Institusi. Pas foto bisa diupload lewat tombol 📷 Foto atau form Siswa (jpg/png/webp maks 300 Kb, otomatis dikonversi ke WebP dan disimpan di storage/app/public/foto). Foto kosong = tampil inisial nama di kartu.</p>
 </div>
 <script>
 (function () {

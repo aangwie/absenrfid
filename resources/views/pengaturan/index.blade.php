@@ -137,7 +137,7 @@
         @else<span class="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 font-semibold">Belum dibuat</span>@endif
       </div>
       <p class="text-[11px] text-slate-500 mt-1">Target saat ini: <span class="font-mono text-slate-400">{{ $sym['current'] ?: ($sym['exists'] ? '(bukan symlink)' : '-') }}</span></p>
-      <p class="text-[11px] text-slate-500 mt-1">Foto siswa disimpan di <span class="font-mono text-slate-400">storage/app/public/foto</span>. Symlink wajib aktif agar foto bisa dibaca browser saat tampil di tabel maupun cetak kartu pelajar.</p>
+      <p class="text-[11px] text-slate-500 mt-1">Foto siswa disimpan di <span class="font-mono text-slate-400">storage/app/public/foto</span> dan disajikan lewat route <span class="font-mono text-slate-400">/media/foto/…</span>, jadi tetap tampil walau symlink belum aktif. Symlink hanya untuk akses langsung <span class="font-mono text-slate-400">/storage/…</span>.</p>
     </div>
     @endif
     <div class="flex flex-col gap-2">

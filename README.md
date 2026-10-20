@@ -14,7 +14,7 @@ Absensi sekolah via RFID / NISN. Laravel 12 + MySQL. Timezone default `Asia/Jaka
   - Institusi: nama/alamat/no_hp + logo `jpg,jpeg,png,webp max:400KB` simpan `data:mime;base64` di `tb_pengaturan.logo_sekolah` (`LONGTEXT`).
   - Waktu: 6 kolom `masuk_mulai/selesai`, `terlambat_mulai/selesai`, `pulang_mulai/selesai` format `H:i`.
   - Update: `git fetch + reset --hard origin/{branch}` via token (tak disimpan, log `***`).
-  - Perawatan: `optimize:clear`, `migrate --force`, symlink storage (`public/storage` → `storage/app/public`, otomatis dibuat ulang bila salah target; wajib aktif agar foto siswa terbaca browser).
+  - Perawatan: `optimize:clear`, `migrate --force`, symlink storage (`public/storage` → `storage/app/public`; opsional — foto siswa disajikan lewat route `/media/foto/…`).
   - Backup: dump `.sql` via PDO (`SHOW TABLES` + `SHOW CREATE TABLE` + `lazy(500)`).
   - Impor: `.sql max:10MB`, split batch 200 dalam transaksi.
 - `/profil` update nama/password. `/login` email+password.
@@ -60,7 +60,7 @@ php artisan storage:link
 php artisan serve --host=127.0.0.1 --port=8000
 ```
 
-`storage:link` membuat `public/storage → storage/app/public` agar foto siswa di `storage/app/public/foto` bisa dibaca browser. Bisa juga dijalankan dari menu Pengaturan → Perawatan → Symlink Storage.
+`storage:link` membuat `public/storage → storage/app/public` (opsional). Foto siswa tetap tampil tanpa symlink karena disajikan lewat route `/media/foto/…`. Symlink bisa juga dibuat dari menu Pengaturan → Perawatan → Symlink Storage.
 
 Seed buat:
 

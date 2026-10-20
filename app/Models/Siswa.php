@@ -6,7 +6,6 @@ use App\Support\FotoWebp;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Facades\Storage;
 
 class Siswa extends Model
 {
@@ -27,7 +26,7 @@ class Siswa extends Model
             return $foto;
         }
 
-        return Storage::disk('public')->url($foto);
+        return route('foto.show', ['file' => basename($foto)]);
     }
 
     /** Hapus file foto siswa (bila tersimpan sebagai file, bukan base64). */

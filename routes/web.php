@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DokumentasiController;
+use App\Http\Controllers\FotoController;
 use App\Http\Controllers\KartuPelajarController;
 use App\Http\Controllers\KelasController;
 use App\Http\Controllers\LaporanController;
@@ -14,6 +15,11 @@ use App\Http\Controllers\WhatsappController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/tap', [DashboardController::class, 'tap'])->name('tap');
+
+// Foto siswa disajikan lewat aplikasi (tanpa butuh symlink / APP_URL benar).
+Route::get('/media/foto/{file}', [FotoController::class, 'show'])
+    ->where('file', '[A-Za-z0-9][A-Za-z0-9._-]*')
+    ->name('foto.show');
 
 Route::get('/', function () {
     \App\Support\WaktuAbsensi::tandaiTanpaKeterangan();
