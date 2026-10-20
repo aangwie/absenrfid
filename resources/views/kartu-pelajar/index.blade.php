@@ -39,7 +39,7 @@
       <tr class="hover:bg-slate-700/30 transition-colors">
         <td class="py-3 px-4"><input type="checkbox" name="ids[]" value="{{ $s->id }}" form="cetak-form" class="row-check w-4 h-4 accent-indigo-600 rounded cursor-pointer"></td>
         <td class="py-3 px-4">
-          @if ($s->foto)<img src="{{ $s->foto }}" alt="Foto" class="h-14 w-11 object-cover rounded-md border border-slate-600 bg-white/10">
+          @if ($s->foto_url)<img src="{{ $s->foto_url }}" alt="Foto" class="h-14 w-11 object-cover rounded-md border border-slate-600 bg-white/10">
           @else<span class="inline-flex h-14 w-11 items-center justify-center rounded-md border border-dashed border-slate-600 text-[10px] text-slate-500 text-center">Belum<br>ada</span>@endif
         </td>
         <td class="py-3 px-4"><div class="font-semibold text-white text-sm">{{ $s->nama }}</div><div class="font-mono text-[11px] text-slate-400">NISN: {{ $s->nisn }}</div></td>
@@ -67,7 +67,7 @@
       @include('partials.paginasi', ['pg' => $siswas])
     </div>
   </div>
-  <p class="text-[11px] text-slate-500 mt-3">Logo, nama & alamat institusi diambil dari Pengaturan → Institusi. Pas foto bisa diupload lewat tombol 📷 Foto atau form Siswa (jpg/png/webp maks 300 Kb, otomatis dikonversi ke WebP). Foto kosong = tampil inisial nama di kartu.</p>
+  <p class="text-[11px] text-slate-500 mt-3">Logo, nama & alamat institusi diambil dari Pengaturan → Institusi. Pas foto bisa diupload lewat tombol 📷 Foto atau form Siswa (jpg/png/webp maks 300 Kb, otomatis dikonversi ke WebP dan disimpan di storage/app/public/foto). Foto kosong = tampil inisial nama di kartu. Agar foto terbaca di hosting, aktifkan Symlink Storage di Pengaturan → Perawatan.</p>
 </div>
 <script>
 (function () {

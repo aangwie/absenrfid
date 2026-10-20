@@ -35,6 +35,7 @@ class PengaturanController extends Controller
             } catch (\Throwable $e) {
                 // tabel antrean belum ada: tampilkan 0
             }
+            $rawat['symlink'] = $this->statusSymlink();
         }
 
         return view('pengaturan.index', ['tab' => $tab, 'p' => $p, 'log' => session('log'), 'rawat' => $rawat]);
@@ -194,17 +195,91 @@ class PengaturanController extends Controller
                 $log[] = $sesudah < $sebelum
                     ? 'SELESAI: antrean diproses.'
                     : 'SELESAI: tidak ada job jatuh tempo. Job tertunda (delay) diproses saat waktunya tiba atau oleh worker kontinu: php artisan queue:work.';
-            } elseif (! (is_link(public_path('storage')) || file_exists(public_path('storage')))) {
-                Artisan::call('storage:link');
-                $log[] = trim(Artisan::output()) ?: 'Symlink storage dibuat.';
-            } else {
-                $log[] = 'Link storage sudah ada, lewati.';
+            } elseif ($data['aksi'] === 'symlink') {
+                $log[] = $this->buatSymlink();
             }
         } catch (\Throwable $e) {
             $log[] = 'GAGAL: ' . $e->getMessage();
         }
 
         return redirect()->route('pengaturan.index', ['tab' => 'perawatan'])->with('log', implode("\n", $log));
+    }
+
+    /**
+     * Status symlink public/storage -> storage/app/public (dipakai foto siswa).
+     */
+    private function statusSymlink(): array
+    {
+        $link = public_path('storage');
+        $target = storage_path('app/public');
+        clearstatcache(true, $link);
+        $isLink = is_link($link);
+        $exists = $isLink || file_exists($link);
+        $real = $exists ? realpath($link) : false;
+        $ok = $real !== false && $real === realpath($target);
+        $current = $isLink ? (readlink($link) ?: null) : ($ok ? $target : null);
+
+        return [
+            'link' => $link,
+            'target' => $target,
+            'exists' => $exists,
+            'is_link' => $isLink,
+            'current' => $current,
+            'ok' => $ok,
+        ];
+    }
+
+    /**
+     * Buat / buat ulang symlink. Link lama (termasuk yang salah target)
+     * dihapus dulu; folder nyata tidak dihapus agar data aman.
+     */
+    private function buatSymlink(): string
+    {
+        $link = public_path('storage');
+        $target = storage_path('app/public');
+
+        if (! is_dir($target) && ! @mkdir($target, 0755, true)) {
+            return 'GAGAL: folder storage/app/public tidak bisa dibuat.';
+        }
+
+        if ($this->statusSymlink()['ok']) {
+            return 'SELESAI: symlink/junction public/storage → storage/app/public sudah aktif.';
+        }
+
+        clearstatcache(true, $link);
+        if (is_link($link)) {
+            if (! @unlink($link)) {
+                return 'GAGAL: symlink lama tidak bisa dihapus (periksa izin folder public).';
+            }
+        } elseif (file_exists($link)) {
+            // Junction Windows yang salah target bisa dihapus dengan rmdir tanpa menghapus isinya.
+            if (DIRECTORY_SEPARATOR === '\\' && is_dir($link)) {
+                @rmdir($link);
+            }
+            if (file_exists($link)) {
+                return 'GAGAL: public/storage sudah ada sebagai folder/dokumen nyata. Rename atau hapus manual dulu, lalu klik lagi.';
+            }
+        }
+
+        if (! @symlink($target, $link)) {
+            // Windows tanpa hak admin: symlink() ditolak, pakai junction (mklink /J).
+            if (DIRECTORY_SEPARATOR === '\\') {
+                try {
+                    Process::timeout(30)->run(['cmd', '/c', 'mklink', '/J', $link, $target]);
+                } catch (\Throwable $e) {
+                    // lanjut ke pesan gagal di bawah
+                }
+                clearstatcache(true, $link);
+                if (is_dir($link) && realpath($link) === realpath($target)) {
+                    return 'SELESAI: junction public/storage → storage/app/public dibuat. Foto siswa di storage/app/public/foto kini bisa dibuka dari browser.';
+                }
+            }
+            $err = error_get_last()['message'] ?? 'symlink() ditolak.';
+
+            return 'GAGAL: ' . $err . ' Hosting mungkin menonaktifkan symlink(); aktifkan fungsi symlink atau arahkan document root ke folder public.';
+        }
+
+        return 'SELESAI: symlink public/storage → storage/app/public dibuat. Foto siswa di storage/app/public/foto kini bisa dibuka dari browser.';
     }
 
     public function unduhBackup()

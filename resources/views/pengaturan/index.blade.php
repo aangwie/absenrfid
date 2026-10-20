@@ -126,8 +126,22 @@
       <div class="flex-1"><p class="text-slate-500">Jobs gagal</p><p class="font-mono font-bold text-rose-300 text-base">{{ $rawat['gagal'] ?? 0 }}</p></div>
       <div class="flex-1"><p class="text-slate-500">Notifikasi antre</p><p class="font-mono font-bold text-sky-300 text-base">{{ $rawat['notif_antre'] ?? 0 }}</p></div>
     </div>
+    @php($sym = $rawat['symlink'] ?? null)
+    @if ($sym)
+    <div class="mb-4 bg-slate-900/60 border border-slate-700 rounded-xl p-3 text-xs">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <p class="text-slate-300"><span class="font-semibold text-white">Symlink storage</span> <span class="text-slate-500">— public/storage → storage/app/public</span></p>
+        @if ($sym['ok'])<span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold">Aktif</span>
+        @elseif ($sym['is_link'])<span class="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold">Target salah</span>
+        @elseif ($sym['exists'])<span class="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold">Folder nyata</span>
+        @else<span class="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 font-semibold">Belum dibuat</span>@endif
+      </div>
+      <p class="text-[11px] text-slate-500 mt-1">Target saat ini: <span class="font-mono text-slate-400">{{ $sym['current'] ?: ($sym['exists'] ? '(bukan symlink)' : '-') }}</span></p>
+      <p class="text-[11px] text-slate-500 mt-1">Foto siswa disimpan di <span class="font-mono text-slate-400">storage/app/public/foto</span>. Symlink wajib aktif agar foto bisa dibaca browser saat tampil di tabel maupun cetak kartu pelajar.</p>
+    </div>
+    @endif
     <div class="flex flex-col gap-2">
-      @foreach ([['clear-cache', 'Bersihkan Cache', 'Hapus cache config/route/view.'], ['migrate', 'Migrasi DB', 'Jalankan migrasi yang tertunda.'], ['symlink', 'Symlink Storage', 'Buat link public/storage bila belum ada.'], ['queue-work', 'Jalankan Antrean', 'Proses jobs tertunda (queue:work, berhenti saat kosong, maks 55 dtk).']] as [$aksi, $label, $desc])
+      @foreach ([['clear-cache', 'Bersihkan Cache', 'Hapus cache config/route/view.'], ['migrate', 'Migrasi DB', 'Jalankan migrasi yang tertunda.'], ['symlink', 'Symlink Storage', 'Buat / perbaiki link public/storage → storage/app/public.'], ['queue-work', 'Jalankan Antrean', 'Proses jobs tertunda (queue:work, berhenti saat kosong, maks 55 dtk).']] as [$aksi, $label, $desc])
       <form action="{{ route('pengaturan.rawat') }}" method="POST" class="flex flex-col sm:flex-row sm:items-center gap-2 bg-slate-900/60 border border-slate-700 rounded-xl p-3">@csrf
         <input type="hidden" name="aksi" value="{{ $aksi }}">
         <p class="text-xs text-slate-300 flex-1"><span class="font-semibold text-white">{{ $label }}</span> <span class="text-slate-500">— {{ $desc }}</span></p>

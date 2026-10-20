@@ -7,14 +7,14 @@ Absensi sekolah via RFID / NISN. Laravel 12 + MySQL. Timezone default `Asia/Jaka
 - `/tap` catat Masuk / Terlambat / Pulang by jam. Tolak di luar jam, tolak pulang tanpa masuk, tolak tap ganda.
 - `/` home publik: rekap hari ini per siswa.
 - `/dashboard` statistik: total siswa, masuk, pulang, terlambat, belum absen, rekap per kelas, 8 tap terakhir.
-- `/siswa` CRUD + cek RFID duplikat + import + template. Search `q`, paginasi `withQueryString()`.
+- `/siswa` CRUD + cek RFID duplikat + import + template. Search `q`, paginasi `withQueryString()`. Pas foto disimpan sebagai WebP di `storage/app/public/foto` (bukan base64).
 - `/kelas` CRUD.
 - `/laporan` filter `harian|periode|bulanan`, paginasi 15. Edit `Tanpa Keterangan` -> `Sakit|Ijin` saja. Ekspor `.xlsx` (ZipArchive stdlib) + PDF murni tanpa lib, `target=_blank`, `portrait|landscape`.
 - `/pengaturan` 6 tab: `institusi|waktu|update|perawatan|backup|impor`.
   - Institusi: nama/alamat/no_hp + logo `jpg,jpeg,png,webp max:400KB` simpan `data:mime;base64` di `tb_pengaturan.logo_sekolah` (`LONGTEXT`).
   - Waktu: 6 kolom `masuk_mulai/selesai`, `terlambat_mulai/selesai`, `pulang_mulai/selesai` format `H:i`.
   - Update: `git fetch + reset --hard origin/{branch}` via token (tak disimpan, log `***`).
-  - Perawatan: `optimize:clear`, `migrate --force`, `storage:link`.
+  - Perawatan: `optimize:clear`, `migrate --force`, symlink storage (`public/storage` → `storage/app/public`, otomatis dibuat ulang bila salah target; wajib aktif agar foto siswa terbaca browser).
   - Backup: dump `.sql` via PDO (`SHOW TABLES` + `SHOW CREATE TABLE` + `lazy(500)`).
   - Impor: `.sql max:10MB`, split batch 200 dalam transaksi.
 - `/profil` update nama/password. `/login` email+password.
@@ -56,8 +56,11 @@ Buat DB bila belum ada:
 mysql -u root -e "CREATE DATABASE IF NOT EXISTS absenrfid;"
 php artisan migrate --force
 php artisan db:seed --force
+php artisan storage:link
 php artisan serve --host=127.0.0.1 --port=8000
 ```
+
+`storage:link` membuat `public/storage → storage/app/public` agar foto siswa di `storage/app/public/foto` bisa dibaca browser. Bisa juga dijalankan dari menu Pengaturan → Perawatan → Symlink Storage.
 
 Seed buat:
 

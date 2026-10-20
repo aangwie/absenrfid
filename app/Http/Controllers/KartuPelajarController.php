@@ -88,9 +88,15 @@ class KartuPelajarController extends Controller
             'foto.max' => 'Pas foto maks 300 Kb.',
         ]);
         $f = $request->file('foto');
-        $siswa->foto = FotoWebp::keDataUri($f);
+        $path = FotoWebp::simpan($f);
+        if ($path === null) {
+            return back()->withErrors(['foto' => 'Gagal menyimpan foto, coba lagi.']);
+        }
+        $fotoLama = $siswa->foto;
+        $siswa->foto = $path;
         $siswa->save();
+        FotoWebp::hapus($fotoLama);
 
-        return back()->with('ok', 'Pas foto ' . $siswa->nama . ' tersimpan (WebP).');
+        return back()->with('ok', 'Pas foto ' . $siswa->nama . ' tersimpan (WebP) di storage/app/public/foto.');
     }
 }

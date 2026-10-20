@@ -17,8 +17,8 @@
     </div>
     <div><label class="block text-xs text-slate-300 mb-1">Nomor HP Orang Tua / Wali (opsional)</label><input name="no_hp_ortu" value="{{ old('no_hp_ortu', $siswa->no_hp_ortu) }}" inputmode="tel" maxlength="20" placeholder="cth 6281234567890" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-white font-mono focus:outline-none focus:border-indigo-500"></div>
     <div>
-      <label class="block text-xs text-slate-300 mb-1">Pas Foto 3x4 (opsional, jpg/png/webp maks 300 Kb, otomatis jadi WebP)</label>
-      @if ($siswa->foto)<div class="flex items-center gap-3 mb-2"><img src="{{ $siswa->foto }}" alt="Foto" class="h-16 w-12 object-cover rounded-lg bg-white/10 border border-slate-700"><label class="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer"><input type="checkbox" name="hapus_foto" value="1" class="accent-rose-600"> Hapus foto</label></div>@endif
+      <label class="block text-xs text-slate-300 mb-1">Pas Foto 3x4 (opsional, jpg/png/webp maks 300 Kb, otomatis jadi WebP di storage/app/public/foto)</label>
+      @if ($siswa->foto_url)<div class="flex items-center gap-3 mb-2"><img src="{{ $siswa->foto_url }}" alt="Foto" class="h-16 w-12 object-cover rounded-lg bg-white/10 border border-slate-700"><label class="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer"><input type="checkbox" name="hapus_foto" value="1" class="accent-rose-600"> Hapus foto</label></div>@endif
       <input type="file" name="foto" accept=".jpg,.jpeg,.png,.webp" class="w-full text-xs text-slate-300 file:mr-3 file:px-4 file:py-2 file:rounded-lg file:border-0 file:bg-slate-700 file:text-white">
     </div>
     <div class="grid grid-cols-2 gap-3">

@@ -40,7 +40,7 @@ class SiswaController extends Controller
             return redirect()->route('kelas.index', ['need' => 1]);
         }
         $data = $request->validate($this->rules(), $this->messages());
-        $data['foto'] = $this->fotoDataUri($request);
+        $data['foto'] = $this->simpanFoto($request);
         if ($data['foto'] === null) {
             unset($data['foto']);
         }
@@ -64,7 +64,8 @@ class SiswaController extends Controller
             return redirect()->route('kelas.index', ['need' => 1]);
         }
         $data = $request->validate($this->rules($siswa->id), $this->messages());
-        $foto = $this->fotoDataUri($request);
+        $fotoLama = $siswa->foto;
+        $foto = $this->simpanFoto($request);
         if ($foto !== null) {
             $data['foto'] = $foto;
         } elseif ($request->boolean('hapus_foto')) {
@@ -73,6 +74,9 @@ class SiswaController extends Controller
             unset($data['foto']);
         }
         $siswa->update($data);
+        if (array_key_exists('foto', $data) && $fotoLama && $fotoLama !== $siswa->foto) {
+            FotoWebp::hapus($fotoLama);
+        }
 
         return redirect()->route('siswa.index')->with('ok', 'Siswa diupdate.');
     }
@@ -110,7 +114,11 @@ class SiswaController extends Controller
             'ids.required' => 'Pilih minimal 1 siswa dulu.',
         ]);
 
-        $count = Siswa::whereIn('id', $data['ids'])->count();
+        $siswas = Siswa::whereIn('id', $data['ids'])->get(['id', 'foto']);
+        $count = $siswas->count();
+        foreach ($siswas as $s) {
+            $s->hapusFoto();
+        }
         Siswa::whereIn('id', $data['ids'])->delete();
 
         return redirect()->route('siswa.index')->with('ok', "$count siswa dihapus.");
@@ -228,7 +236,7 @@ class SiswaController extends Controller
         ];
     }
 
-    private function fotoDataUri(Request $request): ?string
+    private function simpanFoto(Request $request): ?string
     {
         if (! $request->hasFile('foto')) {
             return null;
@@ -238,7 +246,7 @@ class SiswaController extends Controller
             return null;
         }
 
-        return FotoWebp::keDataUri($f);
+        return FotoWebp::simpan($f);
     }
 
     private function parseXlsx(string $path): array

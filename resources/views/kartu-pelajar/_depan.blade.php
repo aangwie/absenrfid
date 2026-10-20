@@ -11,8 +11,8 @@
     </div>
   </div>
   <div class="body">
-    @if ($s->foto)
-    <img class="foto" src="{{ $s->foto }}" alt="Foto {{ $s->nama }}">
+    @if ($s->foto_url)
+    <img class="foto" src="{{ $s->foto_url }}" alt="Foto {{ $s->nama }}">
     @else
     <div class="foto-ph">{{ strtoupper(substr($s->nama ?? 'S', 0, 1)) }}</div>
     @endif
