@@ -42,7 +42,7 @@
       </button>
     </form>
     <div class="mt-5 pt-4 border-t border-slate-700/60 flex items-center justify-between text-[11px] text-slate-500">
-      <a href="{{ route('home') }}" class="hover:text-indigo-300 transition-colors">← Kios Absensi</a>
+      <a href="{{ route('home') }}" class="hover:text-indigo-300 transition-colors">← Absensi</a>
       <span class="font-mono">admin@sekolah.test / admin123</span>
     </div>
   </div>

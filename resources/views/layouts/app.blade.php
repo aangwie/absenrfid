@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="csrf-token" content="{{ csrf_token() }}">
-<title>@yield('title', 'Absensi RFID') - SMK Smart School</title>
+<title>@yield('title', 'Absensi RFID') - Smart School</title>
 @include('partials.favicon')
 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 </head>
