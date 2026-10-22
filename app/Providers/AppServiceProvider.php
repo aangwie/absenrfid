@@ -2,7 +2,10 @@
 
 namespace App\Providers;
 
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -23,5 +26,11 @@ class AppServiceProvider extends ServiceProvider
         // Cegah N+1 saat development/staging; produksi dibiarkan agar tidak
         // memunculkan 500 hanya karena satu relasi lupa di-eager-load.
         Model::preventLazyLoading(! app()->isProduction());
+
+        // Batas request API RFID per alamat IP perangkat.
+        RateLimiter::for('rfid', function (Request $request) {
+            return Limit::perMinute((int) config('rfid.throttle_per_minute', 120))
+                ->by($request->ip());
+        });
     }
 }

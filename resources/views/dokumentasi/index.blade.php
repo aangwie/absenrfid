@@ -3,7 +3,7 @@
 @section('content')
 <div class="bg-slate-800/80 border border-slate-700 rounded-2xl p-5">
   <div class="flex items-center gap-1 bg-slate-900/80 p-1 rounded-xl border border-slate-700/60 overflow-x-auto text-xs font-semibold mb-5">
-    @foreach ([['dashboard', 'Dashboard'], ['siswa', 'Siswa'], ['kartu-pelajar', 'Kartu Pelajar'], ['kelas', 'Kelas'], ['laporan', 'Laporan'], ['whatsapp', 'Whatsapp'], ['pengaturan', 'Pengaturan']] as [$v, $label])
+    @foreach ([['dashboard', 'Dashboard'], ['siswa', 'Siswa'], ['kartu-pelajar', 'Kartu Pelajar'], ['kelas', 'Kelas'], ['laporan', 'Laporan'], ['whatsapp', 'Whatsapp'], ['pengaturan', 'Pengaturan'], ['api', 'API RFID']] as [$v, $label])
     <a href="{{ route('dokumentasi.index', ['tab' => $v]) }}" class="px-3 py-1.5 rounded-lg whitespace-nowrap {{ $tab === $v ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white' }}">{{ $label }}</a>
     @endforeach
   </div>
@@ -229,6 +229,297 @@
         <li>Update GitHub menimpa file lokal (reset --hard) — jangan ubah kode langsung di server produksi.</li>
         <li>Import database menimpa data — selalu unduh backup dulu.</li>
       </ul>
+    </div>
+
+  @elseif ($tab === 'api')
+    <div>
+      <h2 class="text-base font-semibold text-white mb-1">API RFID (ESP32 + MFRC522)</h2>
+      <p class="text-[11px] text-slate-500">Endpoint JSON untuk perangkat reader. Aturan absensinya sama persis dengan kios web: tap pertama Masuk, tap berikutnya Pulang, di luar jam ditolak.</p>
+    </div>
+
+    <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-4 text-[13px]">
+      <p class="font-semibold text-white mb-1.5">Alamat &amp; autentikasi</p>
+      <ul class="list-disc pl-5 flex flex-col gap-1">
+        <li>Base URL: <span class="font-mono text-slate-200">https://domain-anda.com/api</span></li>
+        <li>Setiap request wajib mengirim header <span class="font-mono text-slate-200">X-API-Key</span>. Kunci dibuat di <span class="text-white font-medium">Pengaturan → API Perangkat</span>.</li>
+        <li>Kunci induk dari <span class="font-mono text-slate-200">.env</span> (<span class="font-mono text-slate-200">RFID_API_KEY</span>) juga diterima, cocok untuk uji cepat.</li>
+        <li>Tidak memakai sesi, cookie, maupun CSRF — aman untuk firmware.</li>
+        <li>Hasil bisnis selalu HTTP <span class="font-mono text-slate-200">200</span>; hanya <span class="font-mono text-slate-200">401</span> (kunci salah), <span class="font-mono text-slate-200">403</span> (perangkat nonaktif), <span class="font-mono text-slate-200">429</span> (terlalu sering), dan <span class="font-mono text-slate-200">503</span> (kunci server kosong) yang berbeda.</li>
+      </ul>
+    </div>
+
+    <div>
+      <h3 class="text-sm font-semibold text-white mb-2">1. Endpoint</h3>
+      <div class="overflow-x-auto rounded-xl border border-slate-700/80"><table class="w-full text-left text-xs border-collapse">
+        <thead><tr class="bg-slate-900/90 text-slate-300 border-b border-slate-700 font-semibold"><th class="py-2.5 px-4">Method</th><th class="py-2.5 px-4">Path</th><th class="py-2.5 px-4">Fungsi</th></tr></thead>
+        <tbody class="divide-y divide-slate-700/60">
+          <tr><td class="py-2.5 px-4 font-mono text-emerald-300">POST</td><td class="py-2.5 px-4 font-mono text-slate-200">/api/tap</td><td class="py-2.5 px-4 text-slate-400">Catat tap, balas status siswa</td></tr>
+          <tr><td class="py-2.5 px-4 font-mono text-sky-300">GET</td><td class="py-2.5 px-4 font-mono text-slate-200">/api/ping</td><td class="py-2.5 px-4 text-slate-400">Uji koneksi + kunci + jam server</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <div>
+      <h3 class="text-sm font-semibold text-white mb-2">2. Contoh request</h3>
+      <p class="text-[13px] text-slate-400 mb-2">Parameter <span class="font-mono text-slate-200">tag</span> boleh berisi RFID atau NISN. Mendukung form-urlencoded (disarankan ESP32) dan JSON.</p>
+      <pre class="bg-slate-950/70 border border-slate-700 rounded-xl p-3 overflow-x-auto text-[11px] font-mono text-slate-300">curl -X POST https://domain-anda.com/api/tap \
+  -H "X-API-Key: KUNCI_PERANGKAT" \
+  -H "Accept: application/json" \
+  -d "tag=2234749610"</pre>
+      <p class="text-[11px] text-slate-500 mt-2">Uji di server lokal: ganti domain dengan <span class="font-mono">http://127.0.0.1:8000</span>.</p>
+    </div>
+
+    <div>
+      <h3 class="text-sm font-semibold text-white mb-2">3. Contoh respons sukses</h3>
+      <pre class="bg-slate-950/70 border border-slate-700 rounded-xl p-3 overflow-x-auto text-[11px] font-mono text-emerald-200">{
+  "ok": true,
+  "kode": "TERLAMBAT",
+  "status": "Terlambat",
+  "pesan": "Muhammad Rizky Pratama tercatat MASUK pukul 07:42:10 (Terlambat).",
+  "waktu": "2026-10-22T07:42:10+07:00",
+  "siswa": {
+    "nisn": "0082234749",
+    "nama": "Muhammad Rizky Pratama",
+    "kelas": "XII RPL 1",
+    "rfid_tag": "2234749610"
+  },
+  "absensi": {
+    "tanggal": "2026-10-22",
+    "jam_masuk": "07:42:10",
+    "jam_pulang": null,
+    "status_masuk": "Terlambat",
+    "status_pulang": "Belum"
+  }
+}</pre>
+      <p class="text-[11px] text-slate-500 mt-2">Saat gagal, <span class="font-mono">ok=false</span>, <span class="font-mono">siswa</span> dan <span class="font-mono">absensi</span> bisa <span class="font-mono">null</span>, dan <span class="font-mono">pesan</span> berisi alasan.</p>
+    </div>
+
+    <div>
+      <h3 class="text-sm font-semibold text-white mb-2">4. Arti kode</h3>
+      <div class="overflow-x-auto rounded-xl border border-slate-700/80"><table class="w-full text-left text-xs border-collapse">
+        <thead><tr class="bg-slate-900/90 text-slate-300 border-b border-slate-700 font-semibold"><th class="py-2.5 px-4">kode</th><th class="py-2.5 px-4">ok</th><th class="py-2.5 px-4">Arti</th></tr></thead>
+        <tbody class="divide-y divide-slate-700/60">
+          <tr><td class="py-2.5 px-4 font-mono text-emerald-300">MASUK</td><td class="py-2.5 px-4 text-emerald-300">true</td><td class="py-2.5 px-4 text-slate-400">Tap masuk, tepat waktu</td></tr>
+          <tr><td class="py-2.5 px-4 font-mono text-amber-300">TERLAMBAT</td><td class="py-2.5 px-4 text-emerald-300">true</td><td class="py-2.5 px-4 text-slate-400">Tap masuk, terlambat</td></tr>
+          <tr><td class="py-2.5 px-4 font-mono text-indigo-300">PULANG</td><td class="py-2.5 px-4 text-emerald-300">true</td><td class="py-2.5 px-4 text-slate-400">Tap pulang berhasil</td></tr>
+          <tr><td class="py-2.5 px-4 font-mono text-slate-300">SUDAH_ABSEN</td><td class="py-2.5 px-4 text-rose-300">false</td><td class="py-2.5 px-4 text-slate-400">Sudah tap masuk &amp; pulang</td></tr>
+          <tr><td class="py-2.5 px-4 font-mono text-slate-300">SUDAH_MASUK</td><td class="py-2.5 px-4 text-rose-300">false</td><td class="py-2.5 px-4 text-slate-400">Sudah masuk, belum jam pulang</td></tr>
+          <tr><td class="py-2.5 px-4 font-mono text-rose-300">PULANG_TANPA_MASUK</td><td class="py-2.5 px-4 text-rose-300">false</td><td class="py-2.5 px-4 text-slate-400">Tap pulang sebelum tap masuk</td></tr>
+          <tr><td class="py-2.5 px-4 font-mono text-rose-300">DI_LUAR_JAM</td><td class="py-2.5 px-4 text-rose-300">false</td><td class="py-2.5 px-4 text-slate-400">Di luar semua rentang jam absensi</td></tr>
+          <tr><td class="py-2.5 px-4 font-mono text-rose-300">TAG_TIDAK_DIKENAL</td><td class="py-2.5 px-4 text-rose-300">false</td><td class="py-2.5 px-4 text-slate-400">RFID/NISN tidak terdaftar</td></tr>
+          <tr><td class="py-2.5 px-4 font-mono text-rose-300">GAGAL</td><td class="py-2.5 px-4 text-rose-300">false</td><td class="py-2.5 px-4 text-slate-400">Tag kosong / error lain</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <div>
+      <h3 class="text-sm font-semibold text-white mb-2">5. Setup ESP32 + MFRC522</h3>
+      <ol class="list-decimal pl-5 flex flex-col gap-1.5 text-[13px]">
+        <li>Pasang library lewat Arduino IDE → Library Manager: <span class="font-mono text-slate-200">MFRC522 by GithubCommunity</span> dan <span class="font-mono text-slate-200">ArduinoJson v7</span>.</li>
+        <li>Wiring (MFRC522 <span class="text-rose-300 font-medium">wajib 3.3V</span>): SS→5, SCK→18, MOSI→23, MISO→19, RST→22, 3.3V→3.3V, GND→GND.</li>
+        <li>Buka <span class="font-mono text-slate-200">docs/esp32_tap/esp32_tap.ino</span>, isi <span class="font-mono text-slate-200">WIFI_SSID</span>, <span class="font-mono text-slate-200">WIFI_PASS</span>, <span class="font-mono text-slate-200">API_BASE_URL</span>, dan <span class="font-mono text-slate-200">API_KEY</span> (dari tab Pengaturan → API Perangkat).</li>
+        <li>Upload. Buka Serial Monitor 115200 untuk melihat UID, HTTP code, dan respons JSON tiap tap.</li>
+        <li>Firmware sudah memakai <span class="text-white font-medium">debounce 3 detik</span> agar satu kartu tidak terkirim berulang, plus auto-reconnect WiFi.</li>
+      </ol>
+    </div>
+
+    <div>
+      <h3 class="text-sm font-semibold text-white mb-2">6. Contoh kode ESP32 (Arduino IDE)</h3>
+      <div class="bg-amber-500/10 border border-amber-500/40 rounded-xl p-4 text-[13px] mb-3">
+        <p class="font-semibold text-amber-200 mb-1.5">Cara memasang API key</p>
+        <ol class="list-decimal pl-5 flex flex-col gap-1 text-amber-100/90">
+          <li>Buka <span class="text-white font-medium">Pengaturan → API Perangkat</span>, tambahkan reader, lalu salin kunci 48 karakter yang tampil.</li>
+          <li>Di kode di bawah, tempel kunci tersebut pada baris
+            <span class="font-mono text-amber-200">const char* API_KEY = "...";</span></li>
+          <li>Isi juga <span class="font-mono text-amber-200">WIFI_SSID</span>, <span class="font-mono text-amber-200">WIFI_PASS</span>, dan <span class="font-mono text-amber-200">API_BASE_URL</span> (domain hosting, tanpa garis miring di akhir).</li>
+          <li>Upload, lalu buka Serial Monitor 115200. Setiap tap akan menampilkan UID, HTTP code, dan JSON hasil dari server.</li>
+        </ol>
+      </div>
+
+      <div class="flex items-center justify-between gap-3 mb-2">
+        <p class="text-[11px] text-slate-500">Kode lengkap siap tempel (library: <span class="font-mono">MFRC522</span> + <span class="font-mono">ArduinoJson v7</span>).</p>
+        <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('kode-esp32').innerText).then(function(){this.textContent='Tersalin!'}.bind(this))" class="bg-slate-700 hover:bg-slate-600 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg">Salin Kode</button>
+      </div>
+      <pre id="kode-esp32" class="bg-slate-950/80 border border-slate-700 rounded-xl p-4 overflow-x-auto text-[10.5px] leading-relaxed font-mono text-slate-200">#include &lt;WiFi.h&gt;
+#include &lt;HTTPClient.h&gt;
+#include &lt;WiFiClientSecure.h&gt;
+#include &lt;SPI.h&gt;
+#include &lt;MFRC522.h&gt;
+#include &lt;ArduinoJson.h&gt;
+
+// ================== KONFIGURASI ==================
+const char* WIFI_SSID    = "NAMA_WIFI";
+const char* WIFI_PASS    = "PASSWORD_WIFI";
+
+// Domain hosting, TANPA garis miring di akhir.
+// Lokal: "http://192.168.1.10:8000"
+const char* API_BASE_URL = "https://domain-anda.com";
+
+// >>> TEMPEL KUNCI DARI: Pengaturan -> API Perangkat <<<
+const char* API_KEY      = "GANTI_DENGAN_KUNCI_PERANGKAT_ANDA";
+
+// 1 = UID desimal (2234749610), 0 = UID hex (8532A6AA)
+#define UID_FORMAT_DECIMAL 1
+
+// Abaikan kartu sama dalam 3 detik agar tidak dobel kirim.
+const unsigned long DEBOUNCE_MS = 3000;
+
+// ------------------ PIN MFRC522 ------------------
+#define SS_PIN  5
+#define RST_PIN 22
+
+MFRC522 rfid(SS_PIN, RST_PIN);
+String lastUid = "";
+unsigned long lastTap = 0;
+
+void setup() {
+  Serial.begin(115200);
+  delay(300);
+
+  SPI.begin();            // SCK=18, MISO=19, MOSI=23
+  rfid.PCD_Init();
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  Serial.print("Menghubungkan WiFi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println();
+  Serial.print("IP: ");
+  Serial.println(WiFi.localIP());
+}
+
+void loop() {
+  if (WiFi.status() != WL_CONNECTED) {
+    WiFi.reconnect();
+    delay(1000);
+    return;
+  }
+
+  if (!rfid.PICC_IsNewCardPresent()) return;
+  if (!rfid.PICC_ReadCardSerial()) return;
+
+  String tag = uidKeString(rfid.uid.uidByte, rfid.uid.size);
+  rfid.PICC_HaltA();
+  rfid.PCD_StopCrypto1();
+
+  if (tag == lastUid &amp;&amp; (millis() - lastTap) &lt; DEBOUNCE_MS) return;
+  lastUid = tag;
+  lastTap = millis();
+
+  Serial.println("UID: " + tag);
+  kirimTap(tag);
+}
+
+String uidKeString(byte* uid, byte len) {
+#if UID_FORMAT_DECIMAL
+  unsigned long long n = 0;
+  for (byte i = 0; i &lt; len; i++) {
+    n = (n &lt;&lt; 8) | uid[i];
+  }
+  char buf[24];
+  snprintf(buf, sizeof(buf), "%llu", n);
+  return String(buf);
+#else
+  String s = "";
+  for (byte i = 0; i &lt; len; i++) {
+    if (uid[i] &lt; 0x10) s += "0";
+    s += String(uid[i], HEX);
+  }
+  s.toUpperCase();
+  return s;
+#endif
+}
+
+void kirimTap(const String&amp; tag) {
+  String url = String(API_BASE_URL) + "/api/tap";
+  HTTPClient http;
+
+  // Objek client harus hidup sampai http.end().
+  WiFiClientSecure secure;
+  WiFiClient plain;
+
+  if (url.startsWith("https")) {
+    secure.setInsecure();     // produksi: ganti dengan setCACert()
+    http.begin(secure, url);
+  } else {
+    http.begin(plain, url);
+  }
+
+  http.setTimeout(8000);
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+  http.addHeader("Accept", "application/json");
+  http.addHeader("X-API-Key", API_KEY);   // &lt;-- autentikasi perangkat
+
+  int code = http.POST("tag=" + tag);
+  String body = http.getString();
+  http.end();
+
+  Serial.printf("HTTP %d\n", code);
+  Serial.println("Respons: " + body);
+
+  if (code == 401) { Serial.println("API KEY SALAH / sudah diganti."); return; }
+  if (code == 403) { Serial.println("Perangkat dinonaktifkan admin."); return; }
+  if (code == 429) { Serial.println("Terlalu banyak request, tunggu 1 menit."); return; }
+  if (code != 200) return;
+
+  JsonDocument doc;
+  if (deserializeJson(doc, body)) {
+    Serial.println("JSON tidak valid.");
+    return;
+  }
+
+  const char* kode   = doc["kode"]   | "?";
+  const char* status = doc["status"] | "";
+  const char* pesan  = doc["pesan"]  | "";
+
+  Serial.println("========================================");
+  Serial.printf("KODE   : %s\n", kode);
+  Serial.printf("STATUS : %s\n", status);
+  Serial.printf("PESAN  : %s\n", pesan);
+  Serial.println("========================================");
+}</pre>
+      <p class="text-[11px] text-slate-500 mt-2">Versi lengkap dengan LED/buzzer + komentar wiring: <span class="font-mono text-slate-400">docs/esp32_tap/esp32_tap.ino</span></p>
+    </div>
+
+    <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-4 text-[13px]">
+      <p class="font-semibold text-white mb-1.5">Format UID kartu</p>
+      <p class="mb-1">Server mencocokkan <span class="text-white font-medium">string</span> <span class="font-mono text-slate-200">rfid_tag</span> di database. Firmware contoh mengirim UID 4 byte sebagai desimal big-endian:</p>
+      <pre class="bg-slate-950/70 border border-slate-700 rounded-lg p-2.5 overflow-x-auto text-[10px] font-mono text-slate-300">uint64_t uid = 0;
+for (byte i = 0; i &lt; rfid.uid.size; i++) {
+  uid = (uid &lt;&lt; 8) | rfid.uid.uidByte[i];
+}</pre>
+      <p class="mt-1.5">Bila kartu didaftarkan dalam hex, ubah <span class="font-mono text-slate-200">UID_FORMAT_DECIMAL</span> menjadi <span class="font-mono text-slate-200">0</span> di firmware — atau samakan formatnya saat input di menu Siswa.</p>
+    </div>
+
+    <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-4 text-[13px]">
+      <p class="font-semibold text-white mb-1.5">Checklist hosting</p>
+      <ol class="list-decimal pl-5 flex flex-col gap-1">
+        <li><span class="text-white font-medium">Wajib HTTPS</span> — kunci dikirim lewat header, jangan lewat HTTP biasa.</li>
+        <li>Buat perangkat di <span class="text-white font-medium">Pengaturan → API Perangkat</span>, salin kuncinya ke firmware.</li>
+        <li>Pastikan <span class="font-mono text-slate-200">APP_URL</span> dan <span class="font-mono text-slate-200">APP_TIMEZONE=Asia/Jakarta</span> benar, lalu <span class="font-mono text-slate-200">php artisan config:clear</span>.</li>
+        <li>Jalankan queue worker/cron untuk notifikasi WhatsApp (lihat tab Whatsapp).</li>
+        <li>Opsional: batasi <span class="font-mono text-slate-200">/api/</span> per IP reader di Nginx/firewall.</li>
+        <li>Bila banyak reader di balik satu IP NAT, naikkan <span class="font-mono text-slate-200">RFID_THROTTLE_PER_MINUTE</span> di <span class="font-mono text-slate-200">.env</span>.</li>
+      </ol>
+    </div>
+
+    <div class="bg-rose-500/10 border border-rose-500/40 rounded-xl p-4 text-[13px]">
+      <p class="font-semibold text-rose-200 mb-1.5">Troubleshooting</p>
+      <ul class="list-disc pl-5 flex flex-col gap-1 text-rose-100/90">
+        <li><span class="font-mono">401 UNAUTHORIZED</span> — kunci salah/terhapus. Salin ulang dari Pengaturan → API Perangkat.</li>
+        <li><span class="font-mono">403 PERANGKAT_NONAKTIF</span> — centang Aktif pada perangkat tersebut.</li>
+        <li><span class="font-mono">429</span> — request terlalu sering; tunggu satu menit atau naikkan batas throttle.</li>
+        <li><span class="font-mono">DI_LUAR_JAM</span> — jam server di luar rentang; cek Pengaturan → Waktu Absensi dan zona waktu.</li>
+        <li><span class="font-mono">TAG_TIDAK_DIKENAL</span> — UID tidak cocok. Cek format desimal/hex dan data RFID di menu Siswa.</li>
+        <li>Log tap terakhir bisa dilihat di <span class="text-white font-medium">Pengaturan → API Perangkat</span>.</li>
+      </ul>
+    </div>
+
+    <div class="text-[11px] text-slate-500">
+      Dokumentasi teknis lengkap: <span class="font-mono text-slate-400">docs/api-rfid.md</span> · Firmware: <span class="font-mono text-slate-400">docs/esp32_tap/esp32_tap.ino</span>
     </div>
   @endif
 

@@ -18,6 +18,7 @@ Absensi sekolah via RFID / NISN. Laravel 12 + MySQL. Timezone default `Asia/Jaka
   - Backup: dump `.sql` via PDO (`SHOW TABLES` + `SHOW CREATE TABLE` + `lazy(500)`).
   - Impor: `.sql max:10MB`, split batch 200 dalam transaksi.
 - `/profil` update nama/password. `/login` email+password.
+- `/api/tap` + `/api/ping` untuk perangkat **ESP32 + MFRC522** (header `X-API-Key`, JSON). Kunci per reader dikelola di **Pengaturan → API Perangkat** (tambah/nonaktifkan/regenerasi/hapus + log 50 tap terakhir). Aturan tap sama dengan kios. Dokumentasi: [`docs/api-rfid.md`](docs/api-rfid.md), firmware: [`docs/esp32_tap/esp32_tap.ino`](docs/esp32_tap/esp32_tap.ino), panduan dalam aplikasi: **Dokumentasi → API RFID**.
 
 ## Stack
 
@@ -88,7 +89,11 @@ Base `http://localhost:8000`.
 | `/pengaturan?tab=waktu` | auth | jam kategori |
 | `/pengaturan?tab=backup` | auth | unduh `.sql` |
 | `/pengaturan?tab=impor` | auth | upload `.sql` |
+| `/pengaturan?tab=api` | admin | kelola perangkat RFID + kunci + log tap |
+| `/dokumentasi?tab=api` | auth | panduan API RFID di dalam aplikasi |
 | `POST /tap` | publik | `tag`/`rfid_tag` -> JSON / redirect |
+| `POST /api/tap` | header `X-API-Key` | tap perangkat RFID -> JSON status |
+| `GET /api/ping` | header `X-API-Key` | uji koneksi + jam server |
 
 Jam default (`WaktuAbsensi::rentang()`):
 
@@ -102,6 +107,41 @@ Contoh tap:
 ```powershell
 curl -X POST http://localhost:8000/tap -H "Accept: application/json" -d "tag=2234749610"
 ```
+
+## API Perangkat RFID (ESP32 + MFRC522)
+
+Endpoint khusus perangkat, tanpa sesi/CSRF, autentikasi lewat `RFID_API_KEY` di `.env`:
+
+```bash
+# cek koneksi + kunci
+curl -H "X-API-Key: $RFID_API_KEY" https://domain-anda.com/api/ping
+
+# tap kartu -> JSON MASUK / TERLAMBAT / PULANG / GAGAL
+curl -X POST https://domain-anda.com/api/tap \
+  -H "X-API-Key: $RFID_API_KEY" -d "tag=2234749610"
+```
+
+Respons selalu JSON dengan `ok` + `kode`. Hasil bisnis memakai HTTP 200 agar firmware mudah memproses; hanya 401/429/503 untuk masalah kunci/throttling.
+
+| `kode` | Arti |
+|---|---|
+| `MASUK` / `TERLAMBAT` | Tap masuk berhasil |
+| `PULANG` | Tap pulang berhasil |
+| `SUDAH_ABSEN` | Sudah masuk & pulang |
+| `SUDAH_MASUK` | Sudah masuk, belum jam pulang |
+| `PULANG_TANPA_MASUK` | Pulang sebelum masuk |
+| `DI_LUAR_JAM` | Di luar rentang absensi |
+| `TAG_TIDAK_DIKENAL` | RFID/NISN tidak terdaftar |
+| `GAGAL` | Tag kosong / error lain |
+
+Kunci perangkat dibuat otomatis di **Pengaturan → API Perangkat** (satu kunci per reader, bisa dicabut tanpa mengganggu reader lain). Kunci induk opsional untuk uji cepat:
+
+```bash
+php -r "echo bin2hex(random_bytes(24));"
+# lalu isi RFID_API_KEY di .env, dan: php artisan config:clear
+```
+
+Detail lengkap + contoh firmware: [`docs/api-rfid.md`](docs/api-rfid.md).
 
 ## Peringatan
 

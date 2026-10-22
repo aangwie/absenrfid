@@ -7,7 +7,7 @@
 
 <div class="bg-slate-800/80 border border-slate-700 rounded-2xl p-5">
   <div class="flex items-center gap-1 bg-slate-900/80 p-1 rounded-xl border border-slate-700/60 overflow-x-auto text-xs font-semibold mb-5">
-    @foreach ([['institusi', 'Institusi'], ['waktu', 'Waktu Absensi'], ['update', 'Update GitHub'], ['perawatan', 'Perawatan'], ['backup', 'Backup/Import']] as [$v, $label])
+    @foreach ([['institusi', 'Institusi'], ['waktu', 'Waktu Absensi'], ['update', 'Update GitHub'], ['perawatan', 'Perawatan'], ['backup', 'Backup/Import'], ['api', 'API Perangkat']] as [$v, $label])
     <a href="{{ route('pengaturan.index', ['tab' => $v]) }}" class="px-3 py-1.5 rounded-lg whitespace-nowrap {{ $tab === $v ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white' }}">{{ $label }}</a>
     @endforeach
   </div>
@@ -165,6 +165,124 @@
       <input type="file" name="file" accept=".sql,.txt" class="w-full text-xs text-slate-300 file:mr-3 file:px-4 file:py-2 file:rounded-lg file:border-0 file:bg-slate-700 file:text-white" required>
       <div><button type="submit" class="bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold px-4 py-2 rounded-xl">Import</button></div>
     </form>
+  </div>
+  @elseif ($tab === 'api')
+  <div class="flex flex-col gap-5">
+    <div>
+      <h2 class="text-base font-semibold text-white mb-1">API Perangkat RFID</h2>
+      <p class="text-[11px] text-slate-500">Kelola kunci perangkat ESP32 + MFRC522 dan pantau tap terakhir. Setiap perangkat punya kunci sendiri agar bisa dicabut tanpa mengganggu reader lain.</p>
+    </div>
+
+    <div class="grid sm:grid-cols-2 gap-3">
+      <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-4">
+        <p class="text-[10px] uppercase tracking-wide text-slate-500 mb-1">Base URL API</p>
+        <code class="text-[12px] font-mono text-sky-300 break-all">{{ $api['base_url'] }}</code>
+        <p class="text-[10px] text-slate-500 mt-1.5">Diambil dari <span class="font-mono">APP_URL</span>. Pastikan memakai <span class="text-slate-300">https</span> di hosting.</p>
+      </div>
+      <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-4">
+        <p class="text-[10px] uppercase tracking-wide text-slate-500 mb-1">Kunci Induk (.env)</p>
+        @if ($api['master_ada'])
+          <code class="text-[12px] font-mono text-emerald-300">{{ $api['master_mask'] }}</code>
+          <p class="text-[10px] text-slate-500 mt-1.5">Dipakai untuk uji cepat. Untuk produksi, buat perangkat di bawah dan pakai kunci perangkat.</p>
+        @else
+          <p class="text-xs text-amber-300">Belum diisi.</p>
+          <p class="text-[10px] text-slate-500 mt-1.5">Isi <span class="font-mono">RFID_API_KEY</span> di <span class="font-mono">.env</span> bila ingin memakai kunci induk. Kunci perangkat di bawah tetap bisa dipakai tanpa ini.</p>
+        @endif
+      </div>
+    </div>
+
+    <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-4">
+      <h3 class="text-sm font-semibold text-white mb-3">Tambah Perangkat</h3>
+      <form action="{{ route('pengaturan.perangkat.tambah') }}" method="POST" class="grid sm:grid-cols-3 gap-2">@csrf
+        <input type="text" name="nama" value="{{ old('nama') }}" placeholder="Nama (contoh: Reader Gerbang)" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500" required>
+        <input type="text" name="lokasi" value="{{ old('lokasi') }}" placeholder="Lokasi (opsional)" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500">
+        <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-4 py-2 rounded-lg">Tambah Perangkat</button>
+      </form>
+    </div>
+
+    <div class="flex flex-col gap-3">
+      <h3 class="text-sm font-semibold text-white">Perangkat Terdaftar <span class="text-slate-500 font-normal">({{ $perangkat->count() }})</span></h3>
+      @forelse ($perangkat as $d)
+      <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-4 flex flex-col gap-3">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="font-semibold text-white text-sm">{{ $d->nama }}</p>
+            <p class="text-[11px] text-slate-500">{{ $d->lokasi ?: 'Tanpa lokasi' }} · terakhir tap: {{ $d->terakhir_tap_at ? $d->terakhir_tap_at->diffForHumans() : 'belum pernah' }}</p>
+          </div>
+          <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full {{ $d->aktif ? 'bg-emerald-500/15 text-emerald-300' : 'bg-slate-700/60 text-slate-400' }}">{{ $d->aktif ? 'AKTIF' : 'NONAKTIF' }}</span>
+        </div>
+
+        <div class="bg-slate-950/70 border border-slate-700/60 rounded-lg px-3 py-2">
+          <p class="text-[10px] uppercase tracking-wide text-slate-500 mb-0.5">API Key (header X-API-Key)</p>
+          <code class="text-[11px] font-mono text-emerald-300 break-all">{{ $d->api_key }}</code>
+        </div>
+
+        <form action="{{ route('pengaturan.perangkat.update', $d) }}" method="POST" class="grid sm:grid-cols-4 gap-2 items-center">@csrf @method('PUT')
+          <input type="text" name="nama" value="{{ $d->nama }}" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500" required>
+          <input type="text" name="lokasi" value="{{ $d->lokasi }}" placeholder="Lokasi" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500">
+          <label class="flex items-center gap-2 text-[11px] text-slate-300"><input type="checkbox" name="aktif" value="1" class="accent-indigo-600" @checked($d->aktif)> Aktif</label>
+          <button type="submit" class="bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold px-3 py-2 rounded-lg">Simpan</button>
+        </form>
+
+        <div class="flex flex-wrap gap-2">
+          <form action="{{ route('pengaturan.perangkat.regenerasi', $d) }}" method="POST" onsubmit="return confirm('Buat kunci baru? Kunci lama langsung tidak berlaku.')">@csrf
+            <button type="submit" class="bg-amber-600/90 hover:bg-amber-500 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg">Buat Kunci Baru</button>
+          </form>
+          <form action="{{ route('pengaturan.perangkat.hapus', $d) }}" method="POST" onsubmit="return confirm('Hapus perangkat ini? Firmware dengan kunci ini akan ditolak.')">@csrf @method('DELETE')
+            <button type="submit" class="bg-rose-600/90 hover:bg-rose-500 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg">Hapus</button>
+          </form>
+        </div>
+      </div>
+      @empty
+      <div class="bg-slate-900/40 border border-dashed border-slate-700 rounded-xl px-4 py-6 text-center text-xs text-slate-500">Belum ada perangkat. Tambahkan reader pertama di atas.</div>
+      @endforelse
+    </div>
+
+    <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-4">
+      <div class="flex items-center justify-between gap-3 mb-3">
+        <h3 class="text-sm font-semibold text-white">Log Tap Terakhir <span class="text-slate-500 font-normal">(50 terbaru)</span></h3>
+        @if ($tapLog->isNotEmpty())
+        <form action="{{ route('pengaturan.perangkat.log-hapus') }}" method="POST" onsubmit="return confirm('Hapus seluruh log tap perangkat?')">@csrf @method('DELETE')
+          <button type="submit" class="text-[11px] text-rose-300 hover:text-rose-200">Hapus semua log</button>
+        </form>
+        @endif
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-[11px]">
+          <thead>
+            <tr class="text-left text-slate-500 border-b border-slate-700/60">
+              <th class="py-1.5 pr-3 font-medium">Waktu</th>
+              <th class="py-1.5 pr-3 font-medium">Perangkat</th>
+              <th class="py-1.5 pr-3 font-medium">Tag</th>
+              <th class="py-1.5 pr-3 font-medium">Hasil</th>
+              <th class="py-1.5 font-medium">IP</th>
+            </tr>
+          </thead>
+          <tbody>
+            @forelse ($tapLog as $l)
+            <tr class="border-b border-slate-800/60">
+              <td class="py-1.5 pr-3 text-slate-400 whitespace-nowrap">{{ $l->created_at->format('d/m H:i:s') }}</td>
+              <td class="py-1.5 pr-3 text-slate-300">{{ $l->perangkat->nama ?? 'master' }}</td>
+              <td class="py-1.5 pr-3 font-mono text-slate-300">{{ $l->tag !== '' ? $l->tag : '(kosong)' }}</td>
+              <td class="py-1.5 pr-3"><span class="px-2 py-0.5 rounded-full font-semibold {{ $l->warnaKode() }}">{{ $l->kode }}</span></td>
+              <td class="py-1.5 font-mono text-slate-500">{{ $l->ip }}</td>
+            </tr>
+            @empty
+            <tr><td colspan="5" class="py-4 text-center text-slate-500">Belum ada tap dari API.</td></tr>
+            @endforelse
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="bg-sky-500/10 border border-sky-500/30 rounded-xl p-4 text-[11px] text-sky-100/90">
+      <p class="font-semibold text-sky-200 mb-1">Cara pakai singkat</p>
+      <p class="mb-1">Salin kunci perangkat ke konstanta <span class="font-mono">API_KEY</span> di firmware, lalu tap kartu:</p>
+      <pre class="bg-slate-950/60 border border-sky-500/20 rounded-lg p-3 overflow-x-auto text-[10px] font-mono text-sky-200">curl -X POST {{ $api['base_url'] }}/tap \
+  -H "X-API-Key: KUNCI_PERANGKAT" \
+  -d "tag=2234749610"</pre>
+      <p class="mt-1.5">Dokumentasi lengkap ada di menu <span class="text-white font-medium">Dokumentasi → API RFID</span>.</p>
+    </div>
   </div>
   @endif
 </div>

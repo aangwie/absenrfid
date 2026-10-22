@@ -12,6 +12,8 @@ use App\Http\Controllers\ProfilController;
 use App\Http\Controllers\SiswaController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WhatsappController;
+use App\Models\Siswa;
+use App\Support\WaktuAbsensi;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/tap', [DashboardController::class, 'tap'])->name('tap');
@@ -22,17 +24,17 @@ Route::get('/media/foto/{file}', [FotoController::class, 'show'])
     ->name('foto.show');
 
 Route::get('/', function () {
-    \App\Support\WaktuAbsensi::tandaiTanpaKeterangan();
+    WaktuAbsensi::tandaiTanpaKeterangan();
     $today = now()->toDateString();
-    $siswas = \App\Models\Siswa::leftJoin('tb_absensi as a', function ($join) use ($today) {
-            $join->on('a.nisn', '=', 'tb_siswa.nisn')->whereDate('a.tanggal', $today);
-        })
+    $siswas = Siswa::leftJoin('tb_absensi as a', function ($join) use ($today) {
+        $join->on('a.nisn', '=', 'tb_siswa.nisn')->whereDate('a.tanggal', $today);
+    })
         ->leftJoin('tb_kelas as k', 'k.id', '=', 'tb_siswa.kelas_id')
         ->select('tb_siswa.nisn', 'tb_siswa.rfid_tag', 'tb_siswa.nama', 'k.nama as kelas', 'tb_siswa.gender', 'a.jam_masuk', 'a.jam_pulang', 'a.status_masuk', 'a.status_pulang')
         ->orderBy('k.nama')->orderBy('tb_siswa.nama')->get();
 
-    $rentang = \App\Support\WaktuAbsensi::rentang();
-    $boleh = \App\Support\WaktuAbsensi::boleh(now()->format('H:i:s'));
+    $rentang = WaktuAbsensi::rentang();
+    $boleh = WaktuAbsensi::boleh(now()->format('H:i:s'));
 
     if (request()->wantsJson()) {
         return response()->json($siswas);
@@ -80,6 +82,11 @@ Route::middleware('auth')->group(function () {
         Route::post('/pengaturan/rawat', [PengaturanController::class, 'rawat'])->name('pengaturan.rawat');
         Route::get('/pengaturan/backup', [PengaturanController::class, 'unduhBackup'])->name('pengaturan.backup');
         Route::post('/pengaturan/impor', [PengaturanController::class, 'imporDb'])->name('pengaturan.impor');
+        Route::post('/pengaturan/perangkat', [PengaturanController::class, 'tambahPerangkat'])->name('pengaturan.perangkat.tambah');
+        Route::put('/pengaturan/perangkat/{perangkat}', [PengaturanController::class, 'perbaruiPerangkat'])->name('pengaturan.perangkat.update');
+        Route::post('/pengaturan/perangkat/{perangkat}/regenerasi', [PengaturanController::class, 'regenerasiPerangkat'])->name('pengaturan.perangkat.regenerasi');
+        Route::delete('/pengaturan/perangkat/{perangkat}', [PengaturanController::class, 'hapusPerangkat'])->name('pengaturan.perangkat.hapus');
+        Route::delete('/pengaturan/perangkat-log', [PengaturanController::class, 'hapusLogPerangkat'])->name('pengaturan.perangkat.log-hapus');
         Route::get('/whatsapp', [WhatsappController::class, 'index'])->name('whatsapp.index');
         Route::post('/whatsapp/simpan', [WhatsappController::class, 'simpan'])->name('whatsapp.simpan');
         Route::post('/whatsapp/uji', [WhatsappController::class, 'uji'])->name('whatsapp.uji');

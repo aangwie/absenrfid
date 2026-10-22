@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Pengaturan;
+use App\Models\Perangkat;
+use App\Models\TapLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -13,7 +15,7 @@ class PengaturanController extends Controller
     public function index(Request $request)
     {
         $tab = $request->get('tab', 'institusi');
-        if (! in_array($tab, ['institusi', 'waktu', 'update', 'perawatan', 'backup', 'impor'])) {
+        if (! in_array($tab, ['institusi', 'waktu', 'update', 'perawatan', 'backup', 'impor', 'api'])) {
             $tab = 'institusi';
         }
         $def = [
@@ -38,7 +40,119 @@ class PengaturanController extends Controller
             $rawat['symlink'] = $this->statusSymlink();
         }
 
-        return view('pengaturan.index', ['tab' => $tab, 'p' => $p, 'log' => session('log'), 'rawat' => $rawat]);
+        $perangkat = collect();
+        $tapLog = collect();
+        $api = [
+            'master_ada' => false,
+            'master_mask' => '',
+            'base_url' => rtrim((string) config('app.url'), '/').'/api',
+        ];
+        if ($tab === 'api') {
+            $perangkat = Perangkat::orderBy('nama')->get();
+            $tapLog = TapLog::with('perangkat')->latest('id')->limit(50)->get();
+            $master = trim((string) config('rfid.api_key'));
+            $api = [
+                'master_ada' => $master !== '',
+                'master_mask' => $this->maskKunci($master),
+                'base_url' => rtrim((string) config('app.url'), '/').'/api',
+            ];
+        }
+
+        return view('pengaturan.index', [
+            'tab' => $tab,
+            'p' => $p,
+            'log' => session('log'),
+            'rawat' => $rawat,
+            'perangkat' => $perangkat,
+            'tapLog' => $tapLog,
+            'api' => $api,
+        ]);
+    }
+
+    /**
+     * Tambah perangkat RFID baru (kunci dibuat otomatis).
+     */
+    public function tambahPerangkat(Request $request)
+    {
+        $data = $request->validate([
+            'nama' => ['required', 'string', 'max:100'],
+            'lokasi' => ['nullable', 'string', 'max:150'],
+        ], ['nama.required' => 'Nama perangkat wajib diisi.']);
+
+        $perangkat = Perangkat::create([
+            'nama' => trim($data['nama']),
+            'lokasi' => trim((string) ($data['lokasi'] ?? '')) ?: null,
+            'api_key' => Perangkat::kunciBaru(),
+            'aktif' => true,
+        ]);
+
+        return redirect()->route('pengaturan.index', ['tab' => 'api'])
+            ->with('ok', 'Perangkat "'.$perangkat->nama.'" ditambahkan. Salin kuncinya ke firmware ESP32.');
+    }
+
+    /**
+     * Ubah nama/lokasi atau aktif-nonaktifkan perangkat.
+     */
+    public function perbaruiPerangkat(Request $request, Perangkat $perangkat)
+    {
+        $data = $request->validate([
+            'nama' => ['required', 'string', 'max:100'],
+            'lokasi' => ['nullable', 'string', 'max:150'],
+        ], ['nama.required' => 'Nama perangkat wajib diisi.']);
+
+        $perangkat->update([
+            'nama' => trim($data['nama']),
+            'lokasi' => trim((string) ($data['lokasi'] ?? '')) ?: null,
+            'aktif' => $request->boolean('aktif'),
+        ]);
+
+        return redirect()->route('pengaturan.index', ['tab' => 'api'])
+            ->with('ok', 'Perangkat "'.$perangkat->nama.'" diperbarui.');
+    }
+
+    /**
+     * Buat kunci baru untuk perangkat. Kunci lama langsung tidak berlaku.
+     */
+    public function regenerasiPerangkat(Perangkat $perangkat)
+    {
+        $perangkat->update(['api_key' => Perangkat::kunciBaru()]);
+
+        return redirect()->route('pengaturan.index', ['tab' => 'api'])
+            ->with('ok', 'Kunci baru untuk "'.$perangkat->nama.'" dibuat. Kunci lama tidak berlaku lagi.');
+    }
+
+    public function hapusPerangkat(Perangkat $perangkat)
+    {
+        $nama = $perangkat->nama;
+        $perangkat->delete();
+
+        return redirect()->route('pengaturan.index', ['tab' => 'api'])
+            ->with('ok', 'Perangkat "'.$nama.'" dihapus. Log tap lamanya tetap disimpan tanpa perangkat.');
+    }
+
+    /**
+     * Bersihkan log tap perangkat (seluruhnya).
+     */
+    public function hapusLogPerangkat()
+    {
+        $jumlah = TapLog::count();
+        TapLog::query()->delete();
+
+        return redirect()->route('pengaturan.index', ['tab' => 'api'])
+            ->with('ok', $jumlah.' baris log tap dihapus.');
+    }
+
+    /** Tampilkan sebagian kunci: 6 karakter awal + 4 akhir. */
+    private function maskKunci(string $kunci): string
+    {
+        if ($kunci === '') {
+            return '';
+        }
+        if (strlen($kunci) <= 12) {
+            return str_repeat('•', max(0, strlen($kunci) - 4)).substr($kunci, -4);
+        }
+
+        return substr($kunci, 0, 6).'…'.substr($kunci, -4);
     }
 
     public function simpanInstitusi(Request $request)
@@ -62,7 +176,7 @@ class PengaturanController extends Controller
                 DB::table('tb_pengaturan')->where('kunci', $kunci)->delete();
             } elseif ($request->hasFile($input)) {
                 $f = $request->file($input);
-                $b64 = 'data:' . $f->getMimeType() . ';base64,' . base64_encode(file_get_contents($f->getRealPath()));
+                $b64 = 'data:'.$f->getMimeType().';base64,'.base64_encode(file_get_contents($f->getRealPath()));
                 DB::table('tb_pengaturan')->updateOrInsert(['kunci' => $kunci], ['nilai' => $b64, 'updated_at' => now(), 'created_at' => now()]);
             }
         }
@@ -133,22 +247,23 @@ class PengaturanController extends Controller
             $authedUrl = "https://x-access-token:{$token}@github.com/{$repo}.git";
             $jalan = fn (array $cmd, int $batas = 60) => Process::path($base)->timeout($batas)->run($cmd);
             $tampil = function ($hasil) {
-                $out = trim(($hasil->output() ?? '') . "\n" . ($hasil->errorOutput() ?? ''));
-                return $out === '' ? '(tidak ada output, exit ' . $hasil->exitCode() . ')' : $out . ' [exit ' . $hasil->exitCode() . ']';
+                $out = trim(($hasil->output() ?? '')."\n".($hasil->errorOutput() ?? ''));
+
+                return $out === '' ? '(tidak ada output, exit '.$hasil->exitCode().')' : $out.' [exit '.$hasil->exitCode().']';
             };
 
-            $log[] = '$ git remote set-url origin ' . $publicUrl . ' (pakai token, disembunyikan)';
+            $log[] = '$ git remote set-url origin '.$publicUrl.' (pakai token, disembunyikan)';
             $jalan(['git', 'remote', 'set-url', 'origin', $authedUrl], 30);
 
             $log[] = '$ git fetch origin';
             $fetch = $jalan(['git', 'fetch', 'origin'], 120);
             $log[] = $tampil($fetch);
 
-            $log[] = '$ git reset --hard origin/' . $branch;
-            $reset = $jalan(['git', 'reset', '--hard', 'origin/' . $branch], 120);
+            $log[] = '$ git reset --hard origin/'.$branch;
+            $reset = $jalan(['git', 'reset', '--hard', 'origin/'.$branch], 120);
             $log[] = $tampil($reset);
 
-            $log[] = '$ git remote set-url origin ' . $publicUrl . ' (bersihkan token)';
+            $log[] = '$ git remote set-url origin '.$publicUrl.' (bersihkan token)';
             $jalan(['git', 'remote', 'set-url', 'origin', $publicUrl], 30);
 
             $ok = $fetch->successful() && $reset->successful();
@@ -160,7 +275,7 @@ class PengaturanController extends Controller
                 $log[] = 'GAGAL: cek repo/branch/token.';
             }
         } catch (\Throwable $e) {
-            $log[] = 'GAGAL: ' . $e->getMessage();
+            $log[] = 'GAGAL: '.$e->getMessage();
         }
 
         return redirect()->route('pengaturan.index', ['tab' => 'update'])->with('log', implode("\n", $log));
@@ -169,7 +284,7 @@ class PengaturanController extends Controller
     public function rawat(Request $request)
     {
         $data = $request->validate(['aksi' => ['required', 'in:clear-cache,migrate,symlink,queue-work']]);
-        $log = ['$ aksi: ' . $data['aksi']];
+        $log = ['$ aksi: '.$data['aksi']];
         try {
             if ($data['aksi'] === 'clear-cache') {
                 Artisan::call('optimize:clear');
@@ -199,7 +314,7 @@ class PengaturanController extends Controller
                 $log[] = $this->buatSymlink();
             }
         } catch (\Throwable $e) {
-            $log[] = 'GAGAL: ' . $e->getMessage();
+            $log[] = 'GAGAL: '.$e->getMessage();
         }
 
         return redirect()->route('pengaturan.index', ['tab' => 'perawatan'])->with('log', implode("\n", $log));
@@ -276,7 +391,7 @@ class PengaturanController extends Controller
             }
             $err = error_get_last()['message'] ?? 'symlink() ditolak.';
 
-            return 'GAGAL: ' . $err . ' Hosting mungkin menonaktifkan symlink(); aktifkan fungsi symlink atau arahkan document root ke folder public.';
+            return 'GAGAL: '.$err.' Hosting mungkin menonaktifkan symlink(); aktifkan fungsi symlink atau arahkan document root ke folder public.';
         }
 
         return 'SELESAI: symlink public/storage → storage/app/public dibuat. Foto siswa di storage/app/public/foto kini bisa dibuka dari browser.';
@@ -286,21 +401,21 @@ class PengaturanController extends Controller
     {
         try {
             $tables = collect(DB::select('SHOW TABLES'))->map(fn ($r) => array_values((array) $r)[0])->all();
-            $sql = '-- backup absenrfid ' . now()->toDateTimeString() . "\nSET FOREIGN_KEY_CHECKS=0;\n";
+            $sql = '-- backup absenrfid '.now()->toDateTimeString()."\nSET FOREIGN_KEY_CHECKS=0;\n";
             foreach ($tables as $t) {
                 $create = DB::selectOne("SHOW CREATE TABLE `$t`");
-                $sql .= "DROP TABLE IF EXISTS `$t`;\n" . $create->{'Create Table'} . ";\n\n";
+                $sql .= "DROP TABLE IF EXISTS `$t`;\n".$create->{'Create Table'}.";\n\n";
                 foreach (DB::table($t)->orderBy(DB::raw('1'))->lazy(500) as $row) {
                     $vals = collect($row)->map(fn ($v) => is_null($v) ? 'NULL' : DB::getPdo()->quote((string) $v))->implode(',');
                     $sql .= "INSERT INTO `$t` VALUES ($vals);\n";
                 }
             }
             $sql .= "SET FOREIGN_KEY_CHECKS=1;\n";
-            $nama = 'backup-absenrfid-' . now()->format('Ymd-His') . '.sql';
+            $nama = 'backup-absenrfid-'.now()->format('Ymd-His').'.sql';
 
-            return response($sql, 200, ['Content-Type' => 'application/sql', 'Content-Disposition' => 'attachment; filename="' . $nama . '"']);
+            return response($sql, 200, ['Content-Type' => 'application/sql', 'Content-Disposition' => 'attachment; filename="'.$nama.'"']);
         } catch (\Throwable $e) {
-            return redirect()->route('pengaturan.index', ['tab' => 'backup'])->withErrors(['msg' => 'Backup gagal: ' . $e->getMessage()]);
+            return redirect()->route('pengaturan.index', ['tab' => 'backup'])->withErrors(['msg' => 'Backup gagal: '.$e->getMessage()]);
         }
     }
 
@@ -321,7 +436,8 @@ class PengaturanController extends Controller
             return redirect()->route('pengaturan.index', ['tab' => 'backup'])->with('ok', 'Import database selesai.');
         } catch (\Throwable $e) {
             DB::unprepared('SET FOREIGN_KEY_CHECKS=1;');
-            return redirect()->route('pengaturan.index', ['tab' => 'backup'])->withErrors(['msg' => 'Import gagal: ' . $e->getMessage()]);
+
+            return redirect()->route('pengaturan.index', ['tab' => 'backup'])->withErrors(['msg' => 'Import gagal: '.$e->getMessage()]);
         }
     }
 }

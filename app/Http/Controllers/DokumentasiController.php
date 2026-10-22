@@ -9,7 +9,7 @@ class DokumentasiController extends Controller
     public function index(Request $request)
     {
         $tab = $request->get('tab', 'dashboard');
-        if (! in_array($tab, ['dashboard', 'siswa', 'kartu-pelajar', 'kelas', 'laporan', 'whatsapp', 'pengaturan'])) {
+        if (! in_array($tab, ['dashboard', 'siswa', 'kartu-pelajar', 'kelas', 'laporan', 'whatsapp', 'pengaturan', 'api'])) {
             $tab = 'dashboard';
         }
 
