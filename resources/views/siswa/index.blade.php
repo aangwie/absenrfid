@@ -70,12 +70,12 @@
     </div>
   </form>
   <div class="overflow-x-auto rounded-xl border border-slate-700/80"><table class="w-full text-left text-xs border-collapse">
-    <thead><tr class="bg-slate-900/90 text-slate-300 border-b border-slate-700 font-semibold"><th class="py-3.5 px-4 w-10"><input type="checkbox" id="check-all-head" class="w-4 h-4 accent-indigo-600 rounded"></th><th class="py-3.5 px-4">Foto</th><th class="py-3.5 px-4">Siswa</th><th class="py-3.5 px-4">NISN / RFID</th><th class="py-3.5 px-4">TTL / Thn Masuk</th><th class="py-3.5 px-4">Kelas</th><th class="py-3.5 px-4">HP Ortu/Wali</th><th class="py-3.5 px-4 text-center">Gender</th><th class="py-3.5 px-4 text-center">Aksi</th></tr></thead>
+    <thead><tr class="bg-slate-900/90 text-slate-300 border-b border-slate-700 font-semibold"><th class="py-3.5 px-4 w-10"><input type="checkbox" id="check-all-head" class="w-4 h-4 accent-indigo-600 rounded"></th><th class="py-3.5 px-4">Foto</th><th class="py-3.5 px-4">Siswa</th><th class="py-3.5 px-4">NISN / RFID<div class="text-[9px] font-normal text-slate-500 normal-case">klik 2x untuk edit</div></th><th class="py-3.5 px-4">TTL / Thn Masuk</th><th class="py-3.5 px-4">Kelas</th><th class="py-3.5 px-4">HP Ortu/Wali</th><th class="py-3.5 px-4 text-center">Gender</th><th class="py-3.5 px-4 text-center">Aksi</th></tr></thead>
     <tbody class="divide-y divide-slate-700/60 text-slate-300">@forelse ($siswas as $s)<tr class="hover:bg-slate-700/30 transition-colors"><td class="py-3.5 px-4"><input type="checkbox" name="ids[]" value="{{ $s->id }}" form="bulk-form" class="row-check w-4 h-4 accent-indigo-600 rounded cursor-pointer"></td>
         <td class="py-3 px-4">
           @if ($s->foto_url)<img src="{{ $s->foto_url }}" alt="Foto {{ $s->nama }}" class="h-14 w-11 object-cover rounded-md border border-slate-600 bg-white/10">
           @else<span class="inline-flex h-14 w-11 items-center justify-center rounded-md border border-dashed border-slate-600 text-[10px] text-slate-500 text-center">Belum<br>ada</span>@endif
-        </td><td class="py-3.5 px-4"><div class="font-semibold text-white text-sm">{{ $s->nama }}</div><div class="text-[11px] text-slate-400">Gender: {{ $s->gender === 'P' ? 'Perempuan' : 'Laki-laki' }}</div></td><td class="py-3.5 px-4 font-mono"><div class="text-slate-200">NISN: {{ $s->nisn }}</div><span class="inline-block text-[10px] px-2 py-0.5 rounded border mt-1 font-semibold bg-slate-900 text-slate-400 border-slate-700">RFID: {{ $s->rfid_tag }}</span></td><td class="py-3.5 px-4 text-[11px]"><div class="text-slate-200">{{ $s->tempat_lahir && $s->tanggal_lahir ? $s->tempat_lahir.', '.$s->tanggal_lahir->format('Y-m-d') : ($s->tempat_lahir ?? ($s->tanggal_lahir ? $s->tanggal_lahir->format('Y-m-d') : '-')) }}</div><div class="text-slate-400 mt-0.5">Masuk: {{ $s->tahun_masuk ?? '-' }}</div></td><td class="py-3.5 px-4"><span class="bg-slate-700/60 px-2.5 py-1 rounded-md border border-slate-600/80 font-medium">{{ $s->kelas->nama ?? '-' }}</span></td><td class="py-3.5 px-4 font-mono text-slate-200">{{ $s->no_hp_ortu ?? '-' }}</td><td class="py-3.5 px-4 text-center text-slate-300">{{ $s->gender }}</td>
+        </td><td class="py-3.5 px-4"><div class="font-semibold text-white text-sm">{{ $s->nama }}</div><div class="text-[11px] text-slate-400">Gender: {{ $s->gender === 'P' ? 'Perempuan' : 'Laki-laki' }}</div></td><td class="py-3.5 px-4 font-mono"><div class="identitas-cell group cursor-pointer rounded-lg -m-1 p-1 transition-colors hover:bg-indigo-500/10 focus:outline-none focus:ring-2 focus:ring-indigo-500/60" role="button" tabindex="0" title="Klik 2x untuk edit NISN / RFID" data-id="{{ $s->id }}" data-nama="{{ $s->nama }}" data-nisn="{{ $s->nisn }}" data-rfid="{{ $s->rfid_tag }}" data-action="{{ route('siswa.identitas', $s) }}"><div class="text-slate-200">NISN: <span class="js-nisn">{{ $s->nisn }}</span></div><span class="js-rfid inline-block text-[10px] px-2 py-0.5 rounded border mt-1 font-semibold bg-slate-900 text-slate-400 border-slate-700 group-hover:border-indigo-500/60 group-hover:text-indigo-300">RFID: {{ $s->rfid_tag }}</span></div></td><td class="py-3.5 px-4 text-[11px]"><div class="text-slate-200">{{ $s->tempat_lahir && $s->tanggal_lahir ? $s->tempat_lahir.', '.$s->tanggal_lahir->format('Y-m-d') : ($s->tempat_lahir ?? ($s->tanggal_lahir ? $s->tanggal_lahir->format('Y-m-d') : '-')) }}</div><div class="text-slate-400 mt-0.5">Masuk: {{ $s->tahun_masuk ?? '-' }}</div></td><td class="py-3.5 px-4"><span class="bg-slate-700/60 px-2.5 py-1 rounded-md border border-slate-600/80 font-medium">{{ $s->kelas->nama ?? '-' }}</span></td><td class="py-3.5 px-4 font-mono text-slate-200">{{ $s->no_hp_ortu ?? '-' }}</td><td class="py-3.5 px-4 text-center text-slate-300">{{ $s->gender }}</td>
     <td class="py-3.5 px-4 text-center whitespace-nowrap"><a href="{{ route('siswa.edit', $s) }}" title="Edit {{ $s->nama }}" class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-700 hover:bg-indigo-600 text-slate-200 hover:text-white transition-all mr-1"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg></a><form method="POST" action="{{ route('siswa.destroy', $s) }}" class="inline del-form" data-nama="{{ $s->nama }}">@csrf @method('DELETE')<button title="Hapus {{ $s->nama }}" class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-rose-600/20 border border-rose-500/40 text-rose-300 hover:bg-rose-600 hover:text-white transition-all"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg></button></form></td></tr>@empty<tr><td colspan="9" class="py-8 text-center text-slate-500">Tidak ada data.</td></tr>@endforelse</tbody>
   </table></div>
   <div class="flex flex-col sm:flex-row items-center justify-between gap-2 mt-4 text-xs text-slate-400">
@@ -83,6 +83,141 @@
     @include('partials.paginasi', ['pg' => $siswas])
   </div>
 </div>
+<div id="modal-identitas" class="hidden fixed inset-0 z-50 items-center justify-center p-4">
+  <div class="absolute inset-0 bg-slate-950/75 backdrop-blur-sm" data-identitas-close></div>
+  <div class="relative w-full max-w-md bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl">
+    <div class="flex items-center justify-between px-5 pt-4 pb-3 border-b border-slate-700/70">
+      <h3 class="text-sm font-semibold text-white">Edit NISN / RFID</h3>
+      <button type="button" data-identitas-close aria-label="Tutup" class="w-8 h-8 inline-flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors">&times;</button>
+    </div>
+    <form id="form-identitas" class="p-5 flex flex-col gap-3 text-sm">@csrf @method('PATCH')
+      <div>
+        <label class="block text-xs text-slate-300 mb-1">Nama Siswa</label>
+        <input id="identitas-nama" type="text" readonly tabindex="-1" class="w-full bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2.5 text-slate-400 cursor-not-allowed focus:outline-none">
+      </div>
+      <div>
+        <label for="identitas-rfid" class="block text-xs text-slate-300 mb-1">RFID Tag</label>
+        <input id="identitas-rfid" name="rfid_tag" type="text" required autocomplete="off" maxlength="50" class="w-full bg-slate-900 border border-indigo-500/60 rounded-xl px-3 py-2.5 text-indigo-300 font-mono font-bold focus:outline-none focus:border-indigo-400">
+      </div>
+      <div>
+        <label for="identitas-nisn" class="block text-xs text-slate-300 mb-1">NISN (angka, maks 10 digit)</label>
+        <input id="identitas-nisn" name="nisn" type="text" required inputmode="numeric" pattern="[0-9]{1,10}" maxlength="10" title="NISN hanya angka, maks 10 digit" autocomplete="off" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-white font-mono focus:outline-none focus:border-indigo-500">
+      </div>
+      <p id="identitas-error" class="hidden text-[11px] text-rose-300 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2"></p>
+      <div class="flex gap-2 pt-1">
+        <button type="button" data-identitas-close class="px-4 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm">Batal</button>
+        <button type="submit" id="identitas-save" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2.5 rounded-xl">Simpan</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+(function () {
+  var modal = document.getElementById('modal-identitas');
+  if (!modal) return;
+  var form = document.getElementById('form-identitas');
+  var nama = document.getElementById('identitas-nama');
+  var rfid = document.getElementById('identitas-rfid');
+  var nisn = document.getElementById('identitas-nisn');
+  var err = document.getElementById('identitas-error');
+  var save = document.getElementById('identitas-save');
+  var csrf = document.querySelector('meta[name="csrf-token"]');
+  var cell = null;
+  var lastFocused = null;
+
+  function setError(msg) {
+    if (!msg) { err.textContent = ''; err.classList.add('hidden'); return; }
+    err.textContent = msg;
+    err.classList.remove('hidden');
+  }
+
+  function open(c) {
+    cell = c;
+    lastFocused = document.activeElement;
+    nama.value = c.dataset.nama || '';
+    rfid.value = c.dataset.rfid || '';
+    nisn.value = c.dataset.nisn || '';
+    form.action = c.dataset.action;
+    setError('');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.classList.add('overflow-hidden');
+    // Sesuai permintaan: kursor langsung fokus & menyeleksi isi RFID.
+    setTimeout(function () { rfid.focus(); rfid.select(); }, 30);
+  }
+
+  function close() {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.body.classList.remove('overflow-hidden');
+    if (lastFocused && lastFocused.focus) lastFocused.focus();
+    cell = null;
+  }
+
+  document.querySelectorAll('.identitas-cell').forEach(function (c) {
+    c.addEventListener('dblclick', function () { open(c); });
+    c.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(c); }
+    });
+  });
+
+  modal.querySelectorAll('[data-identitas-close]').forEach(function (b) {
+    b.addEventListener('click', close);
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !modal.classList.contains('hidden')) close();
+  });
+
+  rfid.addEventListener('input', function () { setError(''); });
+  nisn.addEventListener('input', function () {
+    nisn.value = nisn.value.replace(/[^0-9]/g, '').slice(0, 10);
+    setError('');
+  });
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (!cell) return;
+    save.disabled = true;
+    save.classList.add('opacity-60');
+    setError('');
+
+    fetch(form.action, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-CSRF-TOKEN': csrf ? csrf.content : '',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: JSON.stringify({ nisn: nisn.value.trim(), rfid_tag: rfid.value.trim() })
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        return { status: r.status, body: j };
+      });
+    }).then(function (res) {
+      if (res.status >= 200 && res.status < 300) {
+        var updated = cell;
+        updated.dataset.nisn = res.body.nisn;
+        updated.dataset.rfid = res.body.rfid_tag;
+        updated.querySelector('.js-nisn').textContent = res.body.nisn;
+        updated.querySelector('.js-rfid').textContent = 'RFID: ' + res.body.rfid_tag;
+        updated.classList.add('ring-2', 'ring-emerald-400/70');
+        setTimeout(function () { updated.classList.remove('ring-2', 'ring-emerald-400/70'); }, 1200);
+        close();
+        return;
+      }
+      var fields = res.body.errors || {};
+      setError((fields.rfid_tag && fields.rfid_tag[0]) || (fields.nisn && fields.nisn[0]) || res.body.message || ('Gagal menyimpan (HTTP ' + res.status + ').'));
+    }).catch(function () {
+      setError('Jaringan gagal, coba lagi.');
+    }).finally(function () {
+      save.disabled = false;
+      save.classList.remove('opacity-60');
+    });
+  });
+})();
+</script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 // Konfirmasi hapus per-baris (fallback native bila CDN Swal diblokir hosting).

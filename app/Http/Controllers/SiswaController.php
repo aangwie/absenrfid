@@ -6,6 +6,7 @@ use App\Models\Kelas;
 use App\Models\Siswa;
 use App\Support\FotoWebp;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use ZipArchive;
 
@@ -79,6 +80,43 @@ class SiswaController extends Controller
         }
 
         return redirect()->route('siswa.index')->with('ok', 'Siswa diupdate.');
+    }
+
+    /** Edit cepat NISN / RFID dari tabel halaman siswa (double-click). */
+    public function updateIdentitas(Request $request, Siswa $siswa)
+    {
+        $data = $request->validate([
+            'nisn' => ['required', 'regex:/^[0-9]{1,10}$/', Rule::unique('tb_siswa', 'nisn')->ignore($siswa->id)],
+            'rfid_tag' => ['required', 'string', 'max:50', Rule::unique('tb_siswa', 'rfid_tag')->ignore($siswa->id)],
+        ], [
+            'nisn.required' => 'NISN wajib diisi.',
+            'nisn.regex' => 'NISN hanya angka, maks 10 digit.',
+            'nisn.unique' => 'NISN sudah terdaftar.',
+            'rfid_tag.required' => 'RFID wajib diisi.',
+            'rfid_tag.max' => 'RFID maks 50 karakter.',
+            'rfid_tag.unique' => 'RFID sudah dipakai siswa lain.',
+        ]);
+
+        $nisnLama = $siswa->nisn;
+
+        DB::transaction(function () use ($siswa, $data, $nisnLama) {
+            // FK tb_absensi.nisn memakai ON UPDATE CASCADE (lihat migrasi 2026_10_25_000010).
+            $siswa->update($data);
+            if ($nisnLama !== $siswa->nisn) {
+                DB::table('tb_notifikasi_log')->where('nisn', $nisnLama)->update(['nisn' => $siswa->nisn]);
+            }
+        });
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'ok' => true,
+                'nama' => $siswa->nama,
+                'nisn' => $siswa->nisn,
+                'rfid_tag' => $siswa->rfid_tag,
+            ]);
+        }
+
+        return redirect()->route('siswa.index')->with('ok', 'NISN/RFID siswa diupdate.');
     }
 
     public function destroy(Siswa $siswa)

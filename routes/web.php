@@ -60,6 +60,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/siswa/bulk-pindah', [SiswaController::class, 'bulkPindah'])->name('siswa.bulk-pindah');
     Route::post('/siswa/bulk-hapus', [SiswaController::class, 'bulkHapus'])->name('siswa.bulk-hapus');
     Route::get('/siswa/{siswa}/edit', [SiswaController::class, 'edit'])->name('siswa.edit');
+    Route::patch('/siswa/{siswa}/identitas', [SiswaController::class, 'updateIdentitas'])->name('siswa.identitas');
     Route::put('/siswa/{siswa}', [SiswaController::class, 'update'])->name('siswa.update');
     Route::delete('/siswa/{siswa}', [SiswaController::class, 'destroy'])->name('siswa.destroy');
     Route::get('/kelas', [KelasController::class, 'index'])->name('kelas.index');
