@@ -17,11 +17,45 @@ class SiswaController extends Controller
         if (Kelas::count() === 0) {
             return response()->view('siswa.need-kelas');
         }
+        $perPage = (int) $request->integer('per_page', 10);
+        if (! in_array($perPage, [5, 10, 15, 20, 50, 100], true)) {
+            $perPage = 10;
+        }
+
+        $sortMap = [
+            'nama' => 'tb_siswa.nama',
+            'nisn' => 'tb_siswa.nisn',
+            'rfid_tag' => 'tb_siswa.rfid_tag',
+            'tempat_lahir' => 'tb_siswa.tempat_lahir',
+            'tanggal_lahir' => 'tb_siswa.tanggal_lahir',
+            'tahun_masuk' => 'tb_siswa.tahun_masuk',
+            'kelas' => 'k.nama',
+            'no_hp_ortu' => 'tb_siswa.no_hp_ortu',
+            'gender' => 'tb_siswa.gender',
+        ];
+        $sort = (string) $request->query('sort', '');
+        $dir = strtolower((string) $request->query('dir', 'asc')) === 'desc' ? 'desc' : 'asc';
+
         $siswas = Siswa::with('kelas')
             ->leftJoin('tb_kelas as k', 'k.id', '=', 'tb_siswa.kelas_id')
             ->when($request->q, fn ($q) => $q->where('tb_siswa.nama', 'like', "%{$request->q}%")->orWhere('tb_siswa.nisn', 'like', "%{$request->q}%")->orWhere('tb_siswa.rfid_tag', 'like', "%{$request->q}%")->orWhere('tb_siswa.no_hp_ortu', 'like', "%{$request->q}%")->orWhere('tb_siswa.tempat_lahir', 'like', "%{$request->q}%")->orWhere('k.nama', 'like', "%{$request->q}%"))
-            ->select('tb_siswa.*')
-            ->orderBy('k.nama')->orderBy('tb_siswa.nama')->paginate(10)->withQueryString();
+            ->select('tb_siswa.*');
+
+        if (isset($sortMap[$sort])) {
+            $kolom = $sortMap[$sort];
+            // Nilai kosong (NULL) selalu di bawah, baik ASC maupun DESC.
+            $siswas->orderByRaw("($kolom IS NULL)")->orderBy($kolom, $dir);
+            if ($sort !== 'nama') {
+                $siswas->orderBy('tb_siswa.nama');
+            }
+            if ($sort !== 'kelas') {
+                $siswas->orderBy('k.nama');
+            }
+        } else {
+            $siswas->orderBy('k.nama')->orderBy('tb_siswa.nama');
+        }
+
+        $siswas = $siswas->paginate($perPage)->withQueryString();
 
         return view('siswa.index', ['siswas' => $siswas, 'kelasList' => Kelas::orderBy('nama')->get()]);
     }
