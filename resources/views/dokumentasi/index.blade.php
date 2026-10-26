@@ -40,7 +40,7 @@
         <li>Tap pertama hari itu = <span class="text-emerald-300">Masuk</span> (status Tepat Waktu atau Terlambat sesuai jam).</li>
         <li>Tap kedua = <span class="text-indigo-300">Pulang</span>, hanya diterima pada rentang jam pulang.</li>
         <li>Tap pulang sebelum ada jam masuk akan ditolak; tap ketiga dan seterusnya juga ditolak.</li>
-        <li>Kartu/NISN yang tidak terdaftar menampilkan pesan "tidak terdaftar".</li>
+        <li>Hanya kode RFID yang diterima; mengetik NISN akan ditolak. Kartu yang tidak terdaftar menampilkan pesan "tidak terdaftar".</li>
       </ul>
     </div>
 
@@ -306,7 +306,8 @@
           <tr><td class="py-2.5 px-4 font-mono text-slate-300">SUDAH_MASUK</td><td class="py-2.5 px-4 text-rose-300">false</td><td class="py-2.5 px-4 text-slate-400">Sudah masuk, belum jam pulang</td></tr>
           <tr><td class="py-2.5 px-4 font-mono text-rose-300">PULANG_TANPA_MASUK</td><td class="py-2.5 px-4 text-rose-300">false</td><td class="py-2.5 px-4 text-slate-400">Tap pulang sebelum tap masuk</td></tr>
           <tr><td class="py-2.5 px-4 font-mono text-rose-300">DI_LUAR_JAM</td><td class="py-2.5 px-4 text-rose-300">false</td><td class="py-2.5 px-4 text-slate-400">Di luar semua rentang jam absensi</td></tr>
-          <tr><td class="py-2.5 px-4 font-mono text-rose-300">TAG_TIDAK_DIKENAL</td><td class="py-2.5 px-4 text-rose-300">false</td><td class="py-2.5 px-4 text-slate-400">RFID/NISN tidak terdaftar</td></tr>
+          <tr><td class="py-2.5 px-4 font-mono text-rose-300">TAG_TIDAK_DIKENAL</td><td class="py-2.5 px-4 text-rose-300">false</td><td class="py-2.5 px-4 text-slate-400">RFID tidak terdaftar</td></tr>
+          <tr><td class="py-2.5 px-4 font-mono text-rose-300">NISN_DITOLAK</td><td class="py-2.5 px-4 text-rose-300">false</td><td class="py-2.5 px-4 text-slate-400">Tag berisi NISN, bukan kode RFID</td></tr>
           <tr><td class="py-2.5 px-4 font-mono text-rose-300">GAGAL</td><td class="py-2.5 px-4 text-rose-300">false</td><td class="py-2.5 px-4 text-slate-400">Tag kosong / error lain</td></tr>
         </tbody>
       </table></div>

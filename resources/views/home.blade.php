@@ -200,11 +200,13 @@
                 setRfid('');
                 return;
             }
-            const i = students.findIndex(s => s.rfid_tag === tag || s.nisn === tag);
+            // Tap hanya menerima kode RFID; NISN ditolak.
+            const i = students.findIndex(s => s.rfid_tag === tag);
             if (i === -1) {
+                const pakaiNisn = students.some(s => s.nisn === tag);
                 setScan({
                     ok: false,
-                    pesan: 'Kartu [' + tag + '] tidak terdaftar!'
+                    pesan: pakaiNisn ? 'NISN tidak boleh dipakai untuk absensi. Tempel kartu RFID.' : 'Kartu [' + tag + '] tidak terdaftar!'
                 });
                 setRfid('');
                 return;
@@ -321,7 +323,7 @@
           className="w-full sm:w-64 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500" />
       </div>
       <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="text-slate-400 border-b border-slate-700"><th className="text-left py-2 px-2">Nama / NISN</th><th className="text-left py-2 px-2">Kelas</th><th className="text-center py-2 px-2">Masuk</th><th className="text-center py-2 px-2">Pulang</th><th className="text-center py-2 px-2">Status</th></tr></thead>
-      <tbody>${rows.length ? rows.map(s => { const st = (s.status_masuk === 'Sakit' || s.status_masuk === 'Izin' || s.status_masuk === 'Ijin') ? html`<span className="bg-sky-500/20 text-sky-300 border border-sky-500/40 px-2 py-0.5 rounded-full text-[11px]">${s.status_masuk}</span>` : s.status_masuk === 'Tanpa Keterangan' ? html`<span className="bg-slate-600/40 text-slate-300 border border-slate-600 px-2 py-0.5 rounded-full text-[11px]">Tanpa Keterangan</span>` : s.jam_pulang ? html`<span className="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full text-[11px]">Pulang</span>` : (s.jam_masuk || s.status_masuk === 'Di Sekolah') ? html`<span className="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full text-[11px]">Di Sekolah</span>` : html`<span className="bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded-full text-[11px]">Belum Absen</span>`; return html`<tr key=${s.nisn} className="border-b border-slate-700/50"><td className="py-2.5 px-2"><div className="font-semibold text-white">${s.nama}</div><div className="font-mono text-slate-500 text-[11px]">${s.nisn} • ${s.rfid_tag}</div></td><td className="py-2.5 px-2 text-slate-300">${s.kelas}</td><td className="py-2.5 px-2 text-center font-mono text-emerald-300">${s.jam_masuk || '-'}</td><td className="py-2.5 px-2 text-center font-mono text-indigo-300">${s.jam_pulang || '-'}</td><td className="py-2.5 px-2 text-center">${st}</td></tr>`; }) : html`<tr><td colSpan="5" className="py-8 text-center text-slate-500">Tidak ada data cocok.</td></tr>`}</tbody></table></div>
+      <tbody>${rows.length ? rows.map(s => { const st = (s.status_masuk === 'Sakit' || s.status_masuk === 'Izin' || s.status_masuk === 'Ijin') ? html`<span className="bg-sky-500/20 text-sky-300 border border-sky-500/40 px-2 py-0.5 rounded-full text-[11px]">${s.status_masuk}</span>` : s.status_masuk === 'Tanpa Keterangan' ? html`<span className="bg-slate-600/40 text-slate-300 border border-slate-600 px-2 py-0.5 rounded-full text-[11px]">Tanpa Keterangan</span>` : s.jam_pulang ? html`<span className="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full text-[11px]">Pulang</span>` : (s.jam_masuk || s.status_masuk === 'Di Sekolah') ? html`<span className="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full text-[11px]">Di Sekolah</span>` : html`<span className="bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded-full text-[11px]">Belum Absen</span>`; return html`<tr key=${s.nisn} className="border-b border-slate-700/50"><td className="py-2.5 px-2"><div className="font-semibold text-white">${s.nama}</div><div className="font-mono text-slate-500 text-[11px]">${s.nisn}</div></td><td className="py-2.5 px-2 text-slate-300">${s.kelas}</td><td className="py-2.5 px-2 text-center font-mono text-emerald-300">${s.jam_masuk || '-'}</td><td className="py-2.5 px-2 text-center font-mono text-indigo-300">${s.jam_pulang || '-'}</td><td className="py-2.5 px-2 text-center">${st}</td></tr>`; }) : html`<tr><td colSpan="5" className="py-8 text-center text-slate-500">Tidak ada data cocok.</td></tr>`}</tbody></table></div>
       <div className="flex flex-wrap items-center justify-between gap-2 mt-3 text-xs text-slate-400">
         <span>Menampilkan ${dariData}–${sampaiData} dari ${filtered.length} data</span>
         <div className="flex flex-wrap gap-1">

@@ -8,7 +8,10 @@ use App\Models\NotifikasiLog;
 use App\Models\Siswa;
 
 /**
- * Inti logika tap kartu RFID / NISN.
+ * Inti logika tap kartu RFID.
+ *
+ * Hanya kode RFID yang diterima. NISN sengaja ditolak agar absensi tidak bisa
+ * dilakukan dengan mengetik nomor induk siswa.
  *
  * Dipakai bersama oleh kios web (DashboardController@tap) dan API perangkat
  * (Api\TapController@tap) supaya aturan absensi tidak pernah berbeda antara
@@ -37,15 +40,22 @@ class TapAbsensi
         $tag = trim($tag);
 
         if ($tag === '') {
-            return $this->hasil(false, 'GAGAL', 422, 'Tempel kartu / ketik NISN dulu.');
+            return $this->hasil(false, 'GAGAL', 422, 'Tempel kartu RFID dulu.');
         }
 
         $siswa = Siswa::with('kelas')
             ->where('rfid_tag', $tag)
-            ->orWhere('nisn', $tag)
             ->first();
 
         if (! $siswa) {
+            // NISN tidak boleh dipakai sebagai pengganti kartu RFID.
+            if (Siswa::where('nisn', $tag)->exists()) {
+                return $this->hasil(
+                    false, 'NISN_DITOLAK', 422,
+                    'NISN tidak boleh dipakai untuk absensi. Tempel kartu RFID.'
+                );
+            }
+
             return $this->hasil(false, 'TAG_TIDAK_DIKENAL', 404, "Kartu [$tag] tidak terdaftar!");
         }
 

@@ -68,7 +68,7 @@ Mencatat satu tap. Menerima `application/x-www-form-urlencoded`
 
 | Nama | Wajib | Keterangan |
 |---|---|---|
-| `tag` | ya | Isi RFID (`rfid_tag`) **atau** NISN siswa |
+| `tag` | ya | Kode RFID (`rfid_tag`) siswa. NISN **ditolak** |
 | `rfid_tag` / `uid` / `id` | — | Alias bila firmware memakai nama lain |
 
 ### Contoh
@@ -151,7 +151,8 @@ curl -X POST https://domain-anda.com/api/tap \
 | `SUDAH_MASUK` | false | Sudah masuk, belum waktunya pulang | Pesan "sudah masuk" |
 | `PULANG_TANPA_MASUK` | false | Tap pulang sebelum tap masuk | Pesan "belum masuk" |
 | `DI_LUAR_JAM` | false | Di luar semua rentang jam absensi | Pesan "di luar jam" |
-| `TAG_TIDAK_DIKENAL` | false | RFID/NISN tidak ada di `tb_siswa` | Pesan "kartu tidak dikenal" |
+| `TAG_TIDAK_DIKENAL` | false | RFID tidak ada di `tb_siswa` | Pesan "kartu tidak dikenal" |
+| `NISN_DITOLAK` | false | `tag` berisi NISN, bukan kode RFID | Pesan "NISN tidak boleh dipakai" |
 | `GAGAL` | false | Tag kosong / kesalahan lain | Pesan umum |
 
 `status` berisi status manusiawi: `Tepat Waktu`, `Terlambat`, `Selesai`, atau `null`.
