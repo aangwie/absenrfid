@@ -49,10 +49,11 @@ class TapAbsensi
             return $this->hasil(false, 'TAG_TIDAK_DIKENAL', 404, "Kartu [$tag] tidak terdaftar!");
         }
 
-        $today = now()->toDateString();
-        $jam = now()->format('H:i:s');
+        $sekarang = now();
+        $today = $sekarang->toDateString();
+        $jam = $sekarang->format('H:i:s');
         $abs = Absensi::firstOrNew(['nisn' => $siswa->nisn, 'tanggal' => $today]);
-        $kat = WaktuAbsensi::kategori($jam);
+        $kat = WaktuAbsensi::kategori($jam, $today);
 
         if ($kat === 'Tanpa Keterangan') {
             return $this->hasil(

@@ -83,6 +83,9 @@
     window.__SISWA__ = @json($siswas);
     window.__RENTANG__ = @json($rentang ?? []);
     window.__BOLEH_AWAL__ = {{ ($boleh ?? true) ? 'true' : 'false' }};
+    // Dipakai untuk memuat ulang kios saat berganti hari agar jadwal harian terbaru dipakai.
+    window.__KIOS_TANGGAL__ = new Date().toDateString();
+    window.__JADWAL_HASH__ = @json(md5(json_encode($rentang ?? [])));
 </script>
 @include('partials.nfc-helper')
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script><script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -176,7 +179,14 @@
         }, []);
         useEffect(() => {
             const p = setInterval(() => {
-                fetch('/', { headers: { 'Accept': 'application/json' } }).then(r => r.json()).then(d => { if (Array.isArray(d)) setStudents(d); }).catch(() => {});
+                // Lewat tengah malam: muat ulang agar jadwal hari baru langsung berlaku.
+                if (new Date().toDateString() !== window.__KIOS_TANGGAL__) { location.reload(); return; }
+                fetch('/', { headers: { 'Accept': 'application/json' }, cache: 'no-store' }).then(function (r) {
+                    // Jadwal hari ini diubah admin: muat ulang agar rentang jam ikut terbarui.
+                    const h = r.headers.get('X-Jadwal-Absensi');
+                    if (h && window.__JADWAL_HASH__ && h !== window.__JADWAL_HASH__) { location.reload(); return null; }
+                    return r.json();
+                }).then(function (d) { if (Array.isArray(d)) setStudents(d); }).catch(() => {});
             }, 5000);
             return () => clearInterval(p);
         }, []);

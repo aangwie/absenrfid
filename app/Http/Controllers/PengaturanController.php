@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\JadwalAbsensi;
+use App\Models\JadwalAbsensiKhusus;
 use App\Models\Pengaturan;
 use App\Models\Perangkat;
 use App\Models\TapLog;
@@ -9,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Validation\ValidationException;
 
 class PengaturanController extends Controller
 {
@@ -58,6 +61,35 @@ class PengaturanController extends Controller
             ];
         }
 
+        $jadwalUmum = [];
+        $jadwalKhusus = collect();
+        if ($tab === 'waktu') {
+            $bawaan = [
+                'masuk_mulai' => $p['masuk_mulai'],
+                'masuk_selesai' => $p['masuk_selesai'],
+                'terlambat_mulai' => $p['terlambat_mulai'],
+                'terlambat_selesai' => $p['terlambat_selesai'],
+                'pulang_mulai' => $p['pulang_mulai'],
+                'pulang_selesai' => $p['pulang_selesai'],
+            ];
+            try {
+                $tersimpan = JadwalAbsensi::all()->keyBy('hari');
+            } catch (\Throwable $e) {
+                $tersimpan = collect();
+            }
+            foreach (range(1, 7) as $hari) {
+                $row = $tersimpan->get($hari);
+                $jadwalUmum[$hari] = $row
+                    ? $row->only(array_keys($bawaan))
+                    : $bawaan;
+            }
+            try {
+                $jadwalKhusus = JadwalAbsensiKhusus::orderBy('tanggal_mulai')->orderBy('id')->get();
+            } catch (\Throwable $e) {
+                $jadwalKhusus = collect();
+            }
+        }
+
         return view('pengaturan.index', [
             'tab' => $tab,
             'p' => $p,
@@ -66,6 +98,8 @@ class PengaturanController extends Controller
             'perangkat' => $perangkat,
             'tapLog' => $tapLog,
             'api' => $api,
+            'jadwalUmum' => $jadwalUmum,
+            'jadwalKhusus' => $jadwalKhusus,
         ]);
     }
 
@@ -204,6 +238,130 @@ class PengaturanController extends Controller
         Pengaturan::lupakan();
 
         return redirect()->route('pengaturan.index', ['tab' => 'waktu'])->with('ok', 'Waktu absensi tersimpan.');
+    }
+
+    /**
+     * Simpan jadwal absensi rutin untuk 7 hari (Senin–Minggu).
+     */
+    public function simpanWaktuUmum(Request $request)
+    {
+        $data = $request->validate([
+            'umum' => ['required', 'array'],
+            'umum.*.masuk_mulai' => ['required', 'date_format:H:i'],
+            'umum.*.masuk_selesai' => ['required', 'date_format:H:i'],
+            'umum.*.terlambat_mulai' => ['required', 'date_format:H:i'],
+            'umum.*.terlambat_selesai' => ['required', 'date_format:H:i'],
+            'umum.*.pulang_mulai' => ['required', 'date_format:H:i'],
+            'umum.*.pulang_selesai' => ['required', 'date_format:H:i'],
+        ], [
+            'umum.required' => 'Jadwal umum wajib diisi.',
+            'umum.*.required' => 'Semua jam wajib diisi.',
+            'umum.*.date_format' => 'Format jam harus HH:MM.',
+        ]);
+
+        $pesan = [];
+        foreach (range(1, 7) as $hari) {
+            if (! isset($data['umum'][$hari])) {
+                $pesan['umum'] = 'Jadwal untuk semua hari (Senin–Minggu) wajib diisi.';
+                break;
+            }
+        }
+        foreach ($data['umum'] as $hari => $jam) {
+            $hari = (int) $hari;
+            if ($hari < 1 || $hari > 7) {
+                $pesan['umum'] = 'Hari tidak valid.';
+                break;
+            }
+            foreach (['masuk', 'terlambat', 'pulang'] as $bagian) {
+                if ($jam[$bagian.'_mulai'] > $jam[$bagian.'_selesai']) {
+                    $pesan["umum.$hari.$bagian"] = 'Jam mulai '.$bagian.' harus sebelum atau sama dengan jam selesai.';
+                }
+            }
+        }
+        if ($pesan) {
+            throw ValidationException::withMessages($pesan);
+        }
+
+        DB::transaction(function () use ($data) {
+            foreach ($data['umum'] as $hari => $jam) {
+                JadwalAbsensi::updateOrCreate(['hari' => (int) $hari], [
+                    'masuk_mulai' => $jam['masuk_mulai'],
+                    'masuk_selesai' => $jam['masuk_selesai'],
+                    'terlambat_mulai' => $jam['terlambat_mulai'],
+                    'terlambat_selesai' => $jam['terlambat_selesai'],
+                    'pulang_mulai' => $jam['pulang_mulai'],
+                    'pulang_selesai' => $jam['pulang_selesai'],
+                ]);
+            }
+        });
+
+        return redirect()->route('pengaturan.index', ['tab' => 'waktu'])->with('ok', 'Jadwal absensi umum tersimpan.');
+    }
+
+    /**
+     * Tambah jadwal absensi khusus untuk rentang tanggal tertentu.
+     */
+    public function simpanWaktuKhusus(Request $request)
+    {
+        $data = $request->validate([
+            'tanggal_mulai' => ['required', 'date'],
+            'tanggal_selesai' => ['required', 'date', 'after_or_equal:tanggal_mulai'],
+            'masuk_mulai' => ['required', 'date_format:H:i'],
+            'masuk_selesai' => ['required', 'date_format:H:i'],
+            'terlambat_mulai' => ['required', 'date_format:H:i'],
+            'terlambat_selesai' => ['required', 'date_format:H:i'],
+            'pulang_mulai' => ['required', 'date_format:H:i'],
+            'pulang_selesai' => ['required', 'date_format:H:i'],
+            'keterangan' => ['nullable', 'string', 'max:150'],
+        ], [
+            'tanggal_selesai.after_or_equal' => 'Tanggal selesai tidak boleh sebelum tanggal mulai.',
+            '*.required' => 'Semua kolom bertanda wajib diisi.',
+            '*.date_format' => 'Format jam harus HH:MM.',
+        ]);
+
+        $pesan = [];
+        foreach (['masuk', 'terlambat', 'pulang'] as $bagian) {
+            if ($data[$bagian.'_mulai'] > $data[$bagian.'_selesai']) {
+                $pesan[$bagian.'_mulai'] = 'Jam mulai '.$bagian.' harus sebelum atau sama dengan jam selesai.';
+            }
+        }
+
+        $bentrok = JadwalAbsensiKhusus::query()
+            ->whereDate('tanggal_mulai', '<=', $data['tanggal_selesai'])
+            ->whereDate('tanggal_selesai', '>=', $data['tanggal_mulai'])
+            ->exists();
+        if ($bentrok) {
+            $pesan['tanggal_mulai'] = 'Rentang tanggal bertabrakan dengan jadwal khusus yang sudah ada. Hapus jadwal lama dulu bila ingin menggantinya.';
+        }
+
+        if ($pesan) {
+            throw ValidationException::withMessages($pesan);
+        }
+
+        JadwalAbsensiKhusus::create([
+            'tanggal_mulai' => $data['tanggal_mulai'],
+            'tanggal_selesai' => $data['tanggal_selesai'],
+            'masuk_mulai' => $data['masuk_mulai'],
+            'masuk_selesai' => $data['masuk_selesai'],
+            'terlambat_mulai' => $data['terlambat_mulai'],
+            'terlambat_selesai' => $data['terlambat_selesai'],
+            'pulang_mulai' => $data['pulang_mulai'],
+            'pulang_selesai' => $data['pulang_selesai'],
+            'keterangan' => trim((string) ($data['keterangan'] ?? '')) ?: null,
+        ]);
+
+        return redirect()->route('pengaturan.index', ['tab' => 'waktu'])->with('ok', 'Jadwal absensi khusus ditambahkan.');
+    }
+
+    /**
+     * Hapus jadwal absensi khusus.
+     */
+    public function hapusWaktuKhusus(JadwalAbsensiKhusus $khusus)
+    {
+        $rentang = ($khusus->tanggal_mulai?->format('d/m/Y') ?? '-').' – '.($khusus->tanggal_selesai?->format('d/m/Y') ?? '-');
+        $khusus->delete();
+
+        return redirect()->route('pengaturan.index', ['tab' => 'waktu'])->with('ok', 'Jadwal khusus '.$rentang.' dihapus.');
     }
 
     public function simpanUpdateConfig(Request $request)

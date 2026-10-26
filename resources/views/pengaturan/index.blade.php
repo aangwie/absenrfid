@@ -76,20 +76,115 @@
     </form>
   </div>
   @elseif ($tab === 'waktu')
-  <div class="max-w-2xl">
-    <h2 class="text-base font-semibold text-white mb-1">Waktu Absensi</h2>
-    <p class="text-[11px] text-slate-500 mb-4">Format jam HH:MM (24 jam).</p>
-    <form action="{{ route('pengaturan.waktu') }}" method="POST">@csrf
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        @foreach ([['masuk_mulai', 'Masuk Mulai'], ['masuk_selesai', 'Masuk Selesai'], ['terlambat_mulai', 'Terlambat Mulai'], ['terlambat_selesai', 'Terlambat Selesai'], ['pulang_mulai', 'Pulang Mulai'], ['pulang_selesai', 'Pulang Selesai']] as [$name, $label])
-        <div>
-          <label class="block text-xs font-semibold text-slate-300 mb-1.5">{{ $label }}</label>
-          <input type="time" name="{{ $name }}" value="{{ old($name, $p[$name]) }}" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500" required>
+  @php($namaHari = [1 => 'Senin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Kamis', 5 => 'Jumat', 6 => 'Sabtu', 7 => 'Minggu'])
+  <div class="max-w-5xl flex flex-col gap-8">
+    <div>
+      <h2 class="text-base font-semibold text-white mb-1">Waktu Absensi Umum</h2>
+      <p class="text-[11px] text-slate-500 mb-4">Atur jam absensi rutin untuk setiap hari. Format jam HH:MM (24 jam).</p>
+      <form action="{{ route('pengaturan.waktu.umum') }}" method="POST">@csrf
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs min-w-[760px]">
+            <thead>
+              <tr class="text-slate-400 border-b border-slate-700">
+                <th class="text-left py-2 px-2">Hari</th>
+                <th class="text-left py-2 px-2">Masuk <span class="font-normal text-slate-500">(mulai – selesai)</span></th>
+                <th class="text-left py-2 px-2">Terlambat <span class="font-normal text-slate-500">(mulai – selesai)</span></th>
+                <th class="text-left py-2 px-2">Pulang <span class="font-normal text-slate-500">(mulai – selesai)</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @foreach ($namaHari as $hari => $label)
+              <tr class="border-b border-slate-700/50">
+                <td class="py-2 px-2 font-semibold text-slate-200 whitespace-nowrap">{{ $label }}</td>
+                @foreach (['masuk', 'terlambat', 'pulang'] as $bagian)
+                @php($kMulai = $bagian.'_mulai')
+                @php($kSelesai = $bagian.'_selesai')
+                <td class="py-2 px-2">
+                  <div class="flex items-center gap-1">
+                    <input type="time" name="umum[{{ $hari }}][{{ $kMulai }}]" value="{{ old("umum.$hari.$kMulai", $jadwalUmum[$hari][$kMulai] ?? $p[$kMulai]) }}" title="Mulai {{ $bagian }}" class="w-28 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500" required>
+                    <span class="text-slate-500">–</span>
+                    <input type="time" name="umum[{{ $hari }}][{{ $kSelesai }}]" value="{{ old("umum.$hari.$kSelesai", $jadwalUmum[$hari][$kSelesai] ?? $p[$kSelesai]) }}" title="Selesai {{ $bagian }}" class="w-28 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500" required>
+                  </div>
+                </td>
+                @endforeach
+              </tr>
+              @endforeach
+            </tbody>
+          </table>
         </div>
-        @endforeach
+        <p class="text-[11px] text-slate-500 mt-2">Jadwal ini berlaku rutin setiap minggu. Contoh: Senin–Kamis masuk 06:30–07:00, terlambat 07:01–13:59, pulang 14:00–16:00.</p>
+        <button type="submit" class="mt-3 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-4 py-2 rounded-xl">Simpan Jadwal Umum</button>
+      </form>
+    </div>
+
+    <div>
+      <h2 class="text-base font-semibold text-white mb-1">Waktu Absensi Khusus</h2>
+      <p class="text-[11px] text-slate-500 mb-4">Berlaku pada rentang tanggal tertentu dan menimpa jadwal umum. Cocok untuk hari ujian, Ramadhan, atau kegiatan khusus.</p>
+      <form action="{{ route('pengaturan.waktu.khusus') }}" method="POST" class="bg-slate-900/60 border border-slate-700 rounded-xl p-4 flex flex-col gap-3">@csrf
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Dari Tanggal</label>
+            <input type="date" name="tanggal_mulai" value="{{ old('tanggal_mulai') }}" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500" required>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Sampai Tanggal</label>
+            <input type="date" name="tanggal_selesai" value="{{ old('tanggal_selesai') }}" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500" required>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          @foreach ([['masuk', 'Masuk'], ['terlambat', 'Terlambat'], ['pulang', 'Pulang']] as [$bagian, $label])
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1.5">{{ $label }} <span class="font-normal text-slate-500">(mulai – selesai)</span></label>
+            <div class="flex items-center gap-1">
+              <input type="time" name="{{ $bagian }}_mulai" value="{{ old($bagian.'_mulai') }}" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-sm text-white focus:outline-none focus:border-indigo-500" required>
+              <span class="text-slate-500">–</span>
+              <input type="time" name="{{ $bagian }}_selesai" value="{{ old($bagian.'_selesai') }}" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-sm text-white focus:outline-none focus:border-indigo-500" required>
+            </div>
+          </div>
+          @endforeach
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1.5">Keterangan (opsional)</label>
+          <input type="text" name="keterangan" value="{{ old('keterangan') }}" maxlength="150" placeholder="cth: Ujian semester / Ramadhan" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500">
+        </div>
+        <div><button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-4 py-2 rounded-xl">Tambah Jadwal Khusus</button></div>
+      </form>
+
+      @if ($jadwalKhusus->isNotEmpty())
+      <div class="mt-4 overflow-x-auto">
+        <table class="w-full text-xs min-w-[720px]">
+          <thead>
+            <tr class="text-slate-400 border-b border-slate-700">
+              <th class="text-left py-2 px-2">Tanggal</th>
+              <th class="text-left py-2 px-2">Masuk</th>
+              <th class="text-left py-2 px-2">Terlambat</th>
+              <th class="text-left py-2 px-2">Pulang</th>
+              <th class="text-left py-2 px-2">Keterangan</th>
+              <th class="text-right py-2 px-2">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            @foreach ($jadwalKhusus as $j)
+            <tr class="border-b border-slate-700/50">
+              <td class="py-2 px-2 whitespace-nowrap text-slate-200">{{ $j->tanggal_mulai?->format('d/m/Y') }} – {{ $j->tanggal_selesai?->format('d/m/Y') }}</td>
+              <td class="py-2 px-2 font-mono text-emerald-300">{{ substr($j->masuk_mulai, 0, 5) }}–{{ substr($j->masuk_selesai, 0, 5) }}</td>
+              <td class="py-2 px-2 font-mono text-amber-300">{{ substr($j->terlambat_mulai, 0, 5) }}–{{ substr($j->terlambat_selesai, 0, 5) }}</td>
+              <td class="py-2 px-2 font-mono text-indigo-300">{{ substr($j->pulang_mulai, 0, 5) }}–{{ substr($j->pulang_selesai, 0, 5) }}</td>
+              <td class="py-2 px-2 text-slate-400">{{ $j->keterangan ?: '-' }}</td>
+              <td class="py-2 px-2 text-right">
+                <form action="{{ route('pengaturan.waktu.khusus.hapus', $j) }}" method="POST" onsubmit="return confirm('Hapus jadwal khusus ini?')">@csrf @method('DELETE')
+                  <button type="submit" class="text-rose-300 hover:text-rose-200 text-[11px] font-semibold">Hapus</button>
+                </form>
+              </td>
+            </tr>
+            @endforeach
+          </tbody>
+        </table>
       </div>
-      <button type="submit" class="mt-4 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-4 py-2 rounded-xl">Simpan</button>
-    </form>
+      @else
+      <p class="mt-3 text-[11px] text-slate-500">Belum ada jadwal khusus.</p>
+      @endif
+    </div>
   </div>
   @elseif ($tab === 'update')
   <div class="max-w-2xl flex flex-col gap-4">

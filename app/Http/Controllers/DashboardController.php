@@ -52,8 +52,8 @@ class DashboardController extends Controller
     {
         WaktuAbsensi::tandaiTanpaKeterangan();
         $today = now()->toDateString();
-        $rentang = WaktuAbsensi::rentang();
-        $boleh = WaktuAbsensi::boleh(now()->format('H:i:s'));
+        $rentang = WaktuAbsensi::rentang($today);
+        $boleh = WaktuAbsensi::boleh(now()->format('H:i:s'), $today);
 
         $totalSiswa = Siswa::count();
 

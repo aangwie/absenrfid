@@ -33,11 +33,11 @@ Route::get('/', function () {
         ->select('tb_siswa.nisn', 'tb_siswa.rfid_tag', 'tb_siswa.nama', 'k.nama as kelas', 'tb_siswa.gender', 'a.jam_masuk', 'a.jam_pulang', 'a.status_masuk', 'a.status_pulang')
         ->orderBy('k.nama')->orderBy('tb_siswa.nama')->get();
 
-    $rentang = WaktuAbsensi::rentang();
-    $boleh = WaktuAbsensi::boleh(now()->format('H:i:s'));
+    $rentang = WaktuAbsensi::rentang($today);
+    $boleh = WaktuAbsensi::boleh(now()->format('H:i:s'), $today);
 
     if (request()->wantsJson()) {
-        return response()->json($siswas);
+        return response()->json($siswas)->header('X-Jadwal-Absensi', md5(json_encode($rentang)));
     }
 
     return view('home', compact('siswas', 'rentang', 'boleh'));
@@ -78,6 +78,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/pengaturan', [PengaturanController::class, 'index'])->name('pengaturan.index');
         Route::post('/pengaturan/institusi', [PengaturanController::class, 'simpanInstitusi'])->name('pengaturan.institusi');
         Route::post('/pengaturan/waktu', [PengaturanController::class, 'simpanWaktu'])->name('pengaturan.waktu');
+        Route::post('/pengaturan/waktu/umum', [PengaturanController::class, 'simpanWaktuUmum'])->name('pengaturan.waktu.umum');
+        Route::post('/pengaturan/waktu/khusus', [PengaturanController::class, 'simpanWaktuKhusus'])->name('pengaturan.waktu.khusus');
+        Route::delete('/pengaturan/waktu/khusus/{khusus}', [PengaturanController::class, 'hapusWaktuKhusus'])->name('pengaturan.waktu.khusus.hapus');
         Route::post('/pengaturan/update-config', [PengaturanController::class, 'simpanUpdateConfig'])->name('pengaturan.update-config');
         Route::post('/pengaturan/update', [PengaturanController::class, 'updateApp'])->name('pengaturan.update-app');
         Route::post('/pengaturan/rawat', [PengaturanController::class, 'rawat'])->name('pengaturan.rawat');
