@@ -7,6 +7,7 @@
 <title>@yield('title', 'Absensi RFID') - Smart School</title>
 @include('partials.favicon')
 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+@stack('head')
 </head>
 <body class="min-h-screen bg-slate-900 text-slate-100 font-sans antialiased">
 @yield('content')
