@@ -74,12 +74,12 @@ class LaporanController extends Controller
                 $b = now()->format('Y-m');
             }
             $q->where('tanggal', 'like', "$b%");
-            $judul = 'Bulan ' . $b;
+            $judul = 'Bulan '.$b;
         } else {
             $mode = 'harian';
             $t = $request->date('tanggal')?->toDateString() ?? now()->toDateString();
             $q->whereDate('tanggal', $t);
-            $judul = 'Harian ' . $t;
+            $judul = 'Harian '.$t;
         }
 
         return [$mode, $judul, $q];
@@ -99,8 +99,20 @@ class LaporanController extends Controller
         ]);
         // Normalisasi ejaan lama Ijin -> Izin.
         $st = $data['status_masuk'] === 'Ijin' ? 'Izin' : $data['status_masuk'];
+        $this->terapkanStatus($absen, $st);
+        $absen->save();
+
+        return redirect()->route('laporan.index', request()->only(['mode', 'tanggal', 'dari', 'sampai', 'bulan']))->with('ok', 'Status diubah jadi '.$st.'.');
+    }
+
+    /**
+     * Terapkan status manual ke satu baris absensi.
+     * Di Sekolah = hadir (jam masuk diisi bila belum ada); status lain
+     * mengosongkan jam agar tidak dihitung masuk.
+     */
+    private function terapkanStatus(Absensi $absen, string $st): void
+    {
         if ($st === 'Di Sekolah') {
-            // Hadir manual: pastikan jam_masuk ada agar rekap hitung masuk.
             if (! $absen->jam_masuk) {
                 $absen->jam_masuk = now()->format('H:i:s');
             }
@@ -108,16 +120,14 @@ class LaporanController extends Controller
             if (! $absen->jam_pulang) {
                 $absen->status_pulang = 'Belum';
             }
-        } else {
-            // Izin/Sakit/Tanpa Keterangan: nolkan jam agar tak kehitung masuk.
-            $absen->jam_masuk = null;
-            $absen->jam_pulang = null;
-            $absen->status_masuk = $st;
-            $absen->status_pulang = 'Belum';
-        }
-        $absen->save();
 
-        return redirect()->route('laporan.index', request()->only(['mode', 'tanggal', 'dari', 'sampai', 'bulan']))->with('ok', 'Status diubah jadi ' . $st . '.');
+            return;
+        }
+
+        $absen->jam_masuk = null;
+        $absen->jam_pulang = null;
+        $absen->status_masuk = $st;
+        $absen->status_pulang = 'Belum';
     }
 
     public function hapus(Absensi $absen)
@@ -151,20 +161,7 @@ class LaporanController extends Controller
         ]);
         $st = $data['status_masuk'] === 'Ijin' ? 'Izin' : $data['status_masuk'];
         $absen = Absensi::firstOrNew(['nisn' => $data['nisn'], 'tanggal' => $data['tanggal']]);
-        if ($st === 'Di Sekolah') {
-            if (! $absen->jam_masuk) {
-                $absen->jam_masuk = now()->format('H:i:s');
-            }
-            $absen->status_masuk = 'Di Sekolah';
-            if (! $absen->jam_pulang) {
-                $absen->status_pulang = 'Belum';
-            }
-        } else {
-            $absen->jam_masuk = null;
-            $absen->jam_pulang = null;
-            $absen->status_masuk = $st;
-            $absen->status_pulang = 'Belum';
-        }
+        $this->terapkanStatus($absen, $st);
         $absen->save();
 
         $siswa = Siswa::with('kelas')->where('nisn', $data['nisn'])->first();
@@ -174,18 +171,52 @@ class LaporanController extends Controller
             $waHasil = $this->antrekanNotifikasi($siswa, $data['tanggal'], $jam, $st);
         }
 
-        $pesan = 'Status diubah jadi ' . $st . '.';
+        $pesan = 'Status diubah jadi '.$st.'.';
         if ($waHasil !== '') {
-            $pesan .= ' WhatsApp ' . $waHasil . ' dikirim.';
+            $pesan .= ' WhatsApp '.$waHasil.' dikirim.';
         }
 
         return redirect()->route('laporan.index', ['mode' => 'harian', 'tanggal' => $data['tanggal']])->with('ok', $pesan);
     }
 
     /**
+     * Tandai banyak siswa sekaligus dari tabel Belum Absen.
+     * Notifikasi WA diantrekan (bukan dikirim satu per satu di request ini)
+     * agar penandaan puluhan siswa tidak membuat halaman menggantung.
+     */
+    public function tandaiBulk(Request $request)
+    {
+        $data = $request->validate([
+            'nisn' => ['required', 'array', 'min:1'],
+            'nisn.*' => ['string', 'exists:tb_siswa,nisn'],
+            'tanggal' => ['required', 'date'],
+            'status_masuk' => ['required', 'in:Di Sekolah,Izin,Sakit,Tanpa Keterangan,Ijin'],
+        ], [
+            'nisn.required' => 'Centang minimal 1 siswa dulu.',
+            'nisn.min' => 'Centang minimal 1 siswa dulu.',
+        ]);
+
+        $st = $data['status_masuk'] === 'Ijin' ? 'Izin' : $data['status_masuk'];
+        $siswas = Siswa::with('kelas')->whereIn('nisn', $data['nisn'])->get();
+        $jumlah = 0;
+        foreach ($siswas as $siswa) {
+            $absen = Absensi::firstOrNew(['nisn' => $siswa->nisn, 'tanggal' => $data['tanggal']]);
+            $this->terapkanStatus($absen, $st);
+            $absen->save();
+
+            $jam = $absen->jam_masuk ? (string) $absen->jam_masuk : '';
+            $this->antrekanNotifikasi($siswa, $data['tanggal'], $jam, $st, false);
+            $jumlah++;
+        }
+
+        return redirect()->route('laporan.index', ['mode' => 'harian', 'tanggal' => $data['tanggal']])
+            ->with('ok', "$jumlah siswa ditandai $st. Notifikasi WhatsApp masuk antrean.");
+    }
+
+    /**
      * Catat notifikasi WA untuk aksi Tandai di /laporan (Belum Absen).
      */
-    private function antrekanNotifikasi(Siswa $siswa, string $tanggal, string $jam, string $status): string
+    private function antrekanNotifikasi(Siswa $siswa, string $tanggal, string $jam, string $status, bool $langsung = true): string
     {
         try {
             $tujuan = KirimNotifikasiAbsensi::normalisasiNomor($siswa->no_hp_ortu);
@@ -202,6 +233,13 @@ class LaporanController extends Controller
                 $log->update(['status' => 'gagal', 'respons' => 'Nomor HP ortu/wali kosong atau tidak valid.', 'sent_at' => now()]);
 
                 return 'gagal';
+            }
+            if (! $langsung) {
+                // Jeda 10 detik per notifikasi, sama seperti alur tap RFID.
+                $menunggu = NotifikasiLog::where('status', 'antre')->where('id', '<', $log->id)->count();
+                KirimNotifikasiAbsensi::dispatch($log->id)->delay(now()->addSeconds(10 * ($menunggu + 1)));
+
+                return 'antre';
             }
             // Kirim seketika agar hasil bisa ditampilkan pada toast.
             (new KirimNotifikasiAbsensi($log->id))->handle();
@@ -230,11 +268,11 @@ class LaporanController extends Controller
         foreach ($rows as $i => $r) {
             $body[] = [$i + 1, (string) $r->tanggal, $r->nisn, $r->siswa->nama ?? '-', $r->siswa->kelas->nama ?? '-', (string) ($r->jam_masuk ?? '-'), (string) $r->status_masuk, (string) ($r->jam_pulang ?? '-'), (string) $r->status_pulang];
         }
-        $nama = 'laporan-' . $mode . '-' . now()->format('Ymd-His');
+        $nama = 'laporan-'.$mode.'-'.now()->format('Ymd-His');
 
         return $data['format'] === 'xlsx'
-            ? $this->unduhXlsx($nama . '.xlsx', $judul, $head, $body)
-            : $this->unduhPdf($nama . '.pdf', $judul, $head, $body, $data['orientasi']);
+            ? $this->unduhXlsx($nama.'.xlsx', $judul, $head, $body)
+            : $this->unduhPdf($nama.'.pdf', $judul, $head, $body, $data['orientasi']);
     }
 
     protected function baris(array $row, int $n, $st = 0): string
@@ -242,38 +280,38 @@ class LaporanController extends Controller
         $s = "<row r=\"$n\">";
         foreach ($row as $c => $v) {
             $s0 = is_array($st) ? ($st[$c] ?? 0) : $st;
-            $s .= '<c r="' . chr(65 + $c) . $n . '"' . ($s0 > 0 ? ' s="' . $s0 . '"' : '') . ' t="inlineStr"><is><t>' . htmlspecialchars((string) $v, ENT_XML1) . '</t></is></c>';
+            $s .= '<c r="'.chr(65 + $c).$n.'"'.($s0 > 0 ? ' s="'.$s0.'"' : '').' t="inlineStr"><is><t>'.htmlspecialchars((string) $v, ENT_XML1).'</t></is></c>';
         }
 
-        return $s . '</row>';
+        return $s.'</row>';
     }
 
     protected function unduhXlsx(string $nama, string $judul, array $head, array $body)
     {
         // Tabel beneran: judul merge A1:I1, header fill+border, body border, lebar kolom, freeze baris 2.
-        $sd = $this->baris([$judul], 1, 1) . $this->baris($head, 2, 2);
+        $sd = $this->baris([$judul], 1, 1).$this->baris($head, 2, 2);
         foreach ($body as $i => $r) {
             $sd .= $this->baris($r, $i + 3, [4, 4, 4, 3, 3, 4, 4, 4, 4]);
         }
         $last = count($body) + 2;
         $border = '<border><left style="thin"/><right style="thin"/><top style="thin"/><bottom style="thin"/></border>';
         $styles = '<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-            . '<fonts><font><sz val="14"/><b/></font><font><sz val="11"/><b/><color rgb="FFFFFFFF"/></font><font><sz val="11"/></font></fonts>'
-            . '<fills><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1F4ED8"/><bgColor indexed="64"/></patternFill></fill></fills>'
-            . '<borders><border><left/><right/><top/><bottom/></border>' . $border . '</borders>'
-            . '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-            . '<cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
-            . '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
-            . '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
-            . '<xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>'
-            . '<xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
-            . '</cellXfs></styleSheet>';
+            .'<fonts><font><sz val="14"/><b/></font><font><sz val="11"/><b/><color rgb="FFFFFFFF"/></font><font><sz val="11"/></font></fonts>'
+            .'<fills><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1F4ED8"/><bgColor indexed="64"/></patternFill></fill></fills>'
+            .'<borders><border><left/><right/><top/><bottom/></border>'.$border.'</borders>'
+            .'<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+            .'<cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+            .'<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+            .'<xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>'
+            .'<xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+            .'</cellXfs></styleSheet>';
         $sheet = '<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-            . '<cols><col min="1" max="1" width="6"/><col min="2" max="3" width="14"/><col min="4" max="4" width="30"/><col min="5" max="5" width="14"/><col min="6" max="9" width="15"/></cols>'
-            . '<sheetViews><sheetView workbookViewId="0"><pane ySplit="2" topLeftCell="A3" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
-            . '<mergeCells count="1"><mergeCell ref="A1:I1"/></mergeCells>'
-            . '<autoFilter ref="A2:I' . $last . '"/>'
-            . '<sheetData>' . $sd . '</sheetData></worksheet>';
+            .'<cols><col min="1" max="1" width="6"/><col min="2" max="3" width="14"/><col min="4" max="4" width="30"/><col min="5" max="5" width="14"/><col min="6" max="9" width="15"/></cols>'
+            .'<sheetViews><sheetView workbookViewId="0"><pane ySplit="2" topLeftCell="A3" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
+            .'<mergeCells count="1"><mergeCell ref="A1:I1"/></mergeCells>'
+            .'<autoFilter ref="A2:I'.$last.'"/>'
+            .'<sheetData>'.$sd.'</sheetData></worksheet>';
         $parts = [
             '[Content_Types].xml' => '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>',
             '_rels/.rels' => '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
@@ -282,7 +320,7 @@ class LaporanController extends Controller
             'xl/worksheets/sheet1.xml' => $sheet,
             'xl/styles.xml' => $styles,
         ];
-        $tmp = tempnam(sys_get_temp_dir(), 'lap') . '.xlsx';
+        $tmp = tempnam(sys_get_temp_dir(), 'lap').'.xlsx';
         $zip = new ZipArchive;
         $zip->open($tmp, ZipArchive::CREATE | ZipArchive::OVERWRITE);
         foreach ($parts as $k => $v) {
@@ -329,9 +367,9 @@ class LaporanController extends Controller
             $cNum = 6 + $pi * 2;
             $kids[] = "$pNum 0 R";
             $y0 = $H - $m - 14;
-            $t = "BT /F1 11 Tf $m $y0 Td (" . $esc('Laporan Absensi') . ") Tj ET\n";
+            $t = "BT /F1 11 Tf $m $y0 Td (".$esc('Laporan Absensi').") Tj ET\n";
             $y0 -= 13;
-            $t .= "BT /F2 8 Tf $m $y0 Td (" . $esc($judul . ' | ' . $orientasi) . ") Tj ET\n";
+            $t .= "BT /F2 8 Tf $m $y0 Td (".$esc($judul.' | '.$orientasi).") Tj ET\n";
             $y = $y0 - 16;
             $t .= "0.85 g\n";
             for ($c = 0; $c < 9; $c++) {
@@ -340,22 +378,22 @@ class LaporanController extends Controller
             $t .= "0 g 0.4 w\n";
             for ($c = 0; $c < 9; $c++) {
                 $t .= sprintf("%.1f %.1f %.1f %.1f re S\n", $cx[$c], $y - $hh, $cw[$c], $hh);
-                $t .= 'BT /F1 7 Tf ' . sprintf('%.1f %.1f', $cx[$c] + 2, $y - $hh + 5) . ' Td (' . $esc($pot($short[$c], $cw[$c])) . ") Tj ET\n";
+                $t .= 'BT /F1 7 Tf '.sprintf('%.1f %.1f', $cx[$c] + 2, $y - $hh + 5).' Td ('.$esc($pot($short[$c], $cw[$c])).") Tj ET\n";
             }
             $y -= $hh;
             foreach ($chunk as $r) {
                 $y -= $rh;
                 for ($c = 0; $c < 9; $c++) {
                     $t .= sprintf("%.1f %.1f %.1f %.1f re S\n", $cx[$c], $y, $cw[$c], $rh);
-                    $t .= 'BT /F2 7 Tf ' . sprintf('%.1f %.1f', $cx[$c] + 2, $y + 4.5) . ' Td (' . $esc($pot($r[$c], $cw[$c])) . ") Tj ET\n";
+                    $t .= 'BT /F2 7 Tf '.sprintf('%.1f %.1f', $cx[$c] + 2, $y + 4.5).' Td ('.$esc($pot($r[$c], $cw[$c])).") Tj ET\n";
                 }
             }
-            $t .= "BT /F1 7 Tf $m " . ($m - 4) . " Td (" . $esc('Hal ' . ($pi + 1) . ' dari ' . $n) . ") Tj ET\n";
-            $objs[$cNum] = "<< /Length " . strlen($t) . " >>\nstream\n$t\nendstream";
+            $t .= "BT /F1 7 Tf $m ".($m - 4).' Td ('.$esc('Hal '.($pi + 1).' dari '.$n).") Tj ET\n";
+            $objs[$cNum] = '<< /Length '.strlen($t)." >>\nstream\n$t\nendstream";
             $objs[$pNum] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 $W $H] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents $cNum 0 R >>";
         }
         $objs[1] = '<< /Type /Catalog /Pages 2 0 R >>';
-        $objs[2] = '<< /Type /Pages /Kids [' . implode(' ', $kids) . '] /Count ' . $n . ' >>';
+        $objs[2] = '<< /Type /Pages /Kids ['.implode(' ', $kids).'] /Count '.$n.' >>';
         ksort($objs);
         $pdf = "%PDF-1.4\n";
         $offs = [];
@@ -371,6 +409,6 @@ class LaporanController extends Controller
         }
         $pdf .= "trailer\n<< /Size $cnt /Root 1 0 R >>\nstartxref\n$xp\n%%EOF";
 
-        return response($pdf, 200, ['Content-Type' => 'application/pdf', 'Content-Disposition' => 'inline; filename="' . $nama . '"']);
+        return response($pdf, 200, ['Content-Type' => 'application/pdf', 'Content-Disposition' => 'inline; filename="'.$nama.'"']);
     }
 }

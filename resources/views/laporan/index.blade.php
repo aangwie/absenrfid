@@ -63,19 +63,35 @@
   </div>
   @if ($mode === 'harian')
   <div class="mt-6 rounded-xl border border-rose-500/30 overflow-hidden">
-    <div class="bg-rose-500/10 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-      <span class="text-xs font-semibold text-rose-300">Belum Absen ({{ $belum->total() }}) — tanpa baris absensi tanggal {{ $tanggal }}</span>
-      <form method="GET" class="flex items-center gap-2 w-full sm:w-auto">
-        @foreach (['mode' => $mode, 'tanggal' => $tanggal, 'dari' => $dari, 'sampai' => $sampai, 'bulan' => $bulan, 'cari' => $cari] as $n => $v)
-        <input type="hidden" name="{{ $n }}" value="{{ $v }}">
-        @endforeach
-        <input type="search" name="cari_belum" value="{{ $cariBelum }}" placeholder="Cari nama / NISN / RFID / kelas..." class="w-full sm:w-56 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500">
-        <button class="bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold px-3 py-2 rounded-xl whitespace-nowrap">Cari</button>
+    <div class="bg-rose-500/10 px-4 py-3 flex flex-col gap-3">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <span class="text-xs font-semibold text-rose-300">Belum Absen ({{ $belum->total() }}) — tanpa baris absensi tanggal {{ $tanggal }}</span>
+        <form method="GET" class="flex items-center gap-2 w-full sm:w-auto">
+          @foreach (['mode' => $mode, 'tanggal' => $tanggal, 'dari' => $dari, 'sampai' => $sampai, 'bulan' => $bulan, 'cari' => $cari] as $n => $v)
+          <input type="hidden" name="{{ $n }}" value="{{ $v }}">
+          @endforeach
+          <input type="search" name="cari_belum" value="{{ $cariBelum }}" placeholder="Cari nama / NISN / RFID / kelas..." class="w-full sm:w-56 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500">
+          <button class="bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold px-3 py-2 rounded-xl whitespace-nowrap">Cari</button>
+        </form>
+      </div>
+      <form id="bulk-tandai-form" method="POST" action="{{ route('laporan.tandai-bulk') }}" class="flex flex-col sm:flex-row sm:items-center gap-2 bg-slate-900/50 border border-rose-500/20 rounded-xl px-3 py-2 text-xs">
+        @csrf
+        <input type="hidden" name="tanggal" value="{{ $tanggal }}">
+        <label class="flex items-center gap-2 text-slate-300 font-semibold whitespace-nowrap cursor-pointer"><input type="checkbox" id="check-all-belum" class="w-4 h-4 accent-indigo-600 rounded"> Pilih semua</label>
+        <span id="bulk-belum-count" class="text-[11px] text-slate-500">Pilih siswa via checklist</span>
+        <div class="sm:ml-auto flex items-center gap-2">
+          <select name="status_masuk" required class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs">
+            @foreach (['Di Sekolah' => 'Hadir di Sekolah', 'Izin' => 'Izin', 'Sakit' => 'Sakit', 'Tanpa Keterangan' => 'Tanpa Keterangan'] as $val => $label)
+            <option value="{{ $val }}">{{ $label }}</option>
+            @endforeach
+          </select>
+          <button type="submit" id="btn-bulk-tandai" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2 rounded-xl">Tandai (<span id="bulk-tandai-n">0</span>)</button>
+        </div>
       </form>
     </div>
     <div class="overflow-x-auto"><table class="w-full text-left text-xs border-collapse">
-    <thead><tr class="bg-slate-900/90 text-slate-300 border-b border-slate-700 font-semibold"><th class="py-2.5 px-4">No</th><th class="py-2.5 px-4">Siswa</th><th class="py-2.5 px-4">NISN</th><th class="py-2.5 px-4">Kelas</th><th class="py-2.5 px-4 text-center">Aksi</th></tr></thead>
-    <tbody class="divide-y divide-slate-700/60 text-slate-300">@forelse ($belum as $i => $s)<tr><td class="py-2.5 px-4 font-mono text-slate-400">{{ $belum->firstItem() + $i }}</td><td class="py-2.5 px-4 font-semibold text-white">{{ $s->nama }}</td><td class="py-2.5 px-4 font-mono">{{ $s->nisn }}</td><td class="py-2.5 px-4">{{ $s->kelas->nama ?? '-' }}</td><td class="py-2.5 px-4 text-center"><form method="POST" action="{{ route('laporan.tandai') }}" class="flex items-center justify-center gap-1.5">@csrf<input type="hidden" name="nisn" value="{{ $s->nisn }}"><input type="hidden" name="tanggal" value="{{ $tanggal }}"><select name="status_masuk" required class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs">@foreach (['Di Sekolah','Izin','Sakit','Tanpa Keterangan'] as $o)<option value="{{ $o }}">{{ $o }}</option>@endforeach</select><button class="bg-slate-700 hover:bg-indigo-600 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg">Tandai</button></form></td></tr>@empty<tr><td colspan="5" class="py-6 text-center text-slate-500">Semua siswa sudah ada baris absensi.</td></tr>@endforelse</tbody>
+    <thead><tr class="bg-slate-900/90 text-slate-300 border-b border-slate-700 font-semibold"><th class="py-2.5 px-4 w-10"><input type="checkbox" id="check-all-belum-head" class="w-4 h-4 accent-indigo-600 rounded"></th><th class="py-2.5 px-4">No</th><th class="py-2.5 px-4">Siswa</th><th class="py-2.5 px-4">NISN</th><th class="py-2.5 px-4">Kelas</th><th class="py-2.5 px-4 text-center">Aksi</th></tr></thead>
+    <tbody class="divide-y divide-slate-700/60 text-slate-300">@forelse ($belum as $i => $s)<tr><td class="py-2.5 px-4"><input type="checkbox" name="nisn[]" value="{{ $s->nisn }}" form="bulk-tandai-form" class="belum-check w-4 h-4 accent-indigo-600 rounded cursor-pointer"></td><td class="py-2.5 px-4 font-mono text-slate-400">{{ $belum->firstItem() + $i }}</td><td class="py-2.5 px-4 font-semibold text-white">{{ $s->nama }}</td><td class="py-2.5 px-4 font-mono">{{ $s->nisn }}</td><td class="py-2.5 px-4">{{ $s->kelas->nama ?? '-' }}</td><td class="py-2.5 px-4 text-center"><form method="POST" action="{{ route('laporan.tandai') }}" class="flex items-center justify-center gap-1.5">@csrf<input type="hidden" name="nisn" value="{{ $s->nisn }}"><input type="hidden" name="tanggal" value="{{ $tanggal }}"><select name="status_masuk" required class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs">@foreach (['Di Sekolah' => 'Hadir di Sekolah', 'Izin' => 'Izin', 'Sakit' => 'Sakit', 'Tanpa Keterangan' => 'Tanpa Keterangan'] as $val => $label)<option value="{{ $val }}">{{ $label }}</option>@endforeach</select><button class="bg-slate-700 hover:bg-indigo-600 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg">Tandai</button></form></td></tr>@empty<tr><td colspan="6" class="py-6 text-center text-slate-500">Semua siswa sudah ada baris absensi.</td></tr>@endforelse</tbody>
   </table></div>
   <div class="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-400 border-t border-rose-500/20">
     <span>{{ $belum->total() > 0 ? 'Menampilkan '.$belum->firstItem().'–'.$belum->lastItem().' dari '.$belum->total().' data' : 'Tidak ada data' }}</span>
@@ -152,6 +168,62 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initBulk);
   else initBulk();
+})();
+</script>
+<script>
+// Checklist tabel Belum Absen: tandai banyak siswa sekaligus.
+(function () {
+  function init() {
+    var form = document.getElementById('bulk-tandai-form');
+    if (!form) return;
+    var countEl = document.getElementById('bulk-belum-count');
+    var btnN = document.getElementById('bulk-tandai-n');
+    var all1 = document.getElementById('check-all-belum');
+    var all2 = document.getElementById('check-all-belum-head');
+    function rows() { return Array.prototype.slice.call(document.querySelectorAll('.belum-check')); }
+    function selected() { return rows().filter(function (c) { return c.checked; }); }
+    function refresh() {
+      var n = selected().length;
+      if (countEl) countEl.textContent = n > 0 ? n + ' dipilih' : 'Pilih siswa via checklist';
+      if (btnN) btnN.textContent = n;
+      var list = rows();
+      var all = n > 0 && list.length > 0 && n === list.length;
+      if (all1 && all1.checked !== all) all1.checked = all;
+      if (all2 && all2.checked !== all) all2.checked = all;
+    }
+    function setAll(v) { rows().forEach(function (c) { c.checked = !!v; }); refresh(); }
+    function ask(title, text) {
+      if (window.Swal && Swal.fire) return Swal.fire({title: title, text: text, icon: 'question', showCancelButton: true, confirmButtonColor: '#059669', cancelButtonColor: '#475569', confirmButtonText: 'Ya, tandai', cancelButtonText: 'Batal', background: '#1e293b', color: '#f1f5f9'});
+      return Promise.resolve({isConfirmed: window.confirm(title + '\n' + (text || ''))});
+    }
+    function info(title) {
+      if (window.Swal && Swal.fire) return Swal.fire({title: title, icon: 'warning', background: '#1e293b', color: '#f1f5f9'});
+      window.alert(title);
+      return Promise.resolve();
+    }
+    document.addEventListener('change', function (e) {
+      var t = e.target;
+      if (!t || !t.classList) return;
+      if (t.classList.contains('belum-check')) refresh();
+      else if (t.id === 'check-all-belum' || t.id === 'check-all-belum-head') setAll(t.checked);
+    });
+    document.addEventListener('click', function (e) {
+      var t = e.target;
+      if (!t || !t.classList) return;
+      if (t.classList.contains('belum-check') || t.id === 'check-all-belum' || t.id === 'check-all-belum-head') setTimeout(refresh, 0);
+    });
+    form.addEventListener('submit', function (e) {
+      var list = selected();
+      if (!list.length) { e.preventDefault(); info('Centang minimal 1 siswa dulu.'); return; }
+      e.preventDefault();
+      var status = form.querySelector('[name="status_masuk"]');
+      var label = status ? status.value : '';
+      ask('Tandai ' + list.length + ' siswa sebagai ' + label + '?', 'Status absensi siswa terpilih akan diubah dan notifikasi WhatsApp masuk antrean.').then(function (r) { if (r.isConfirmed) form.submit(); });
+    });
+    refresh();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
 })();
 </script>
 @endsection

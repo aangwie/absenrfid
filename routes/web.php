@@ -69,6 +69,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/kelas/{kelas}', [KelasController::class, 'destroy'])->name('kelas.destroy');
     Route::get('/laporan', [LaporanController::class, 'index'])->name('laporan.index');
     Route::post('/laporan/tandai', [LaporanController::class, 'tandai'])->name('laporan.tandai');
+    Route::post('/laporan/tandai-bulk', [LaporanController::class, 'tandaiBulk'])->name('laporan.tandai-bulk');
     Route::get('/laporan/ekspor', [LaporanController::class, 'ekspor'])->name('laporan.ekspor');
     Route::get('/laporan/{absen}/edit', [LaporanController::class, 'edit'])->name('laporan.edit');
     Route::put('/laporan/{absen}', [LaporanController::class, 'perbarui'])->name('laporan.perbarui');
