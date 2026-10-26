@@ -153,6 +153,32 @@ class SiswaController extends Controller
         return redirect()->route('siswa.index')->with('ok', 'NISN/RFID siswa diupdate.');
     }
 
+    /** Edit cepat HP ortu/wali dari tabel halaman siswa (double-click). */
+    public function updateKontak(Request $request, Siswa $siswa)
+    {
+        $request->merge(['no_hp_ortu' => trim((string) $request->input('no_hp_ortu', ''))]);
+
+        $data = $request->validate([
+            'no_hp_ortu' => ['nullable', 'string', 'max:20', 'regex:/^[+]?[0-9][0-9\s-]{6,18}$/'],
+        ], [
+            'no_hp_ortu.max' => 'No HP maks 20 karakter.',
+            'no_hp_ortu.regex' => 'No HP ortu/wali tidak valid.',
+        ]);
+
+        $hp = trim((string) ($data['no_hp_ortu'] ?? ''));
+        $siswa->update(['no_hp_ortu' => $hp !== '' ? $hp : null]);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'ok' => true,
+                'nama' => $siswa->nama,
+                'no_hp_ortu' => $siswa->no_hp_ortu,
+            ]);
+        }
+
+        return redirect()->route('siswa.index')->with('ok', 'HP ortu/wali siswa diupdate.');
+    }
+
     public function destroy(Siswa $siswa)
     {
         $siswa->delete();
@@ -220,7 +246,7 @@ class SiswaController extends Controller
         try {
             $rows = $this->parseXlsx($request->file('file')->getRealPath());
         } catch (\Throwable $e) {
-            return back()->withErrors(['file' => 'Gagal baca .xlsx: ' . $e->getMessage()]);
+            return back()->withErrors(['file' => 'Gagal baca .xlsx: '.$e->getMessage()]);
         }
         // ponytail: loop per baris OK utk <2rb baris. Upgrade batch upsert + queue bila >10rb.
         // Kolom template: NISN | RFID_TAG | NAMA | KELAS | GENDER | NO_HP_ORTU | TEMPAT_LAHIR | TANGGAL_LAHIR | TAHUN_MASUK
@@ -289,7 +315,7 @@ class SiswaController extends Controller
             }
         }
 
-        return back()->with('ok', "Import: $ok ok, " . count($fail) . ' gagal.')->with('fail', $fail);
+        return back()->with('ok', "Import: $ok ok, ".count($fail).' gagal.')->with('fail', $fail);
     }
 
     private function rules(?int $ignoreId = null): array
@@ -410,6 +436,7 @@ class SiswaController extends Controller
         $xml = (string) preg_replace('/\s+[A-Za-z_][\w.-]*:[\w.-]+\s*=\s*("[^"]*"|\'[^\']*\')/', '', $xml);
         $xml = (string) preg_replace('#</?[A-Za-z_][\w.-]*:[\w.-]+[^>]*>#', '', $xml);
         $xml = (string) preg_replace('/xmlns(:\w+)?="[^"]*"/', '', $xml);
+
         return $xml;
     }
 
@@ -458,6 +485,6 @@ class SiswaController extends Controller
 
     private function messages(): array
     {
-        return ['nisn.required' => 'NISN wajib diisi.', 'nisn.regex' => 'NISN hanya angka, maks 10 digit.', 'nisn.unique' => 'NISN sudah terdaftar.', 'rfid_tag.unique' => 'RFID sudah dipakai siswa lain.', 'tempat_lahir.max' => 'Tempat lahir maks 50 karakter.', 'tanggal_lahir.date' => 'Tanggal lahir tidak valid.', 'tanggal_lahir.before_or_equal' => 'Tanggal lahir tidak boleh masa depan.', 'tahun_masuk.integer' => 'Tahun masuk harus angka.', 'tahun_masuk.min' => 'Tahun masuk minimal 2000.', 'tahun_masuk.max' => 'Tahun masuk maksimal 2100.', 'foto.mimes' => 'Pas foto harus jpg/png/webp.', 'foto.max' => 'Pas foto maks 300 Kb.', 'kelas_id.required' => 'Pilih kelas dulu.', 'kelas_id.exists' => 'Kelas tidak valid, buat dulu di menu Kelas.', 'gender.in' => 'Gender harus L atau P.', 'no_hp_ortu.regex' => 'No HP ortu/wali tidak valid.']; 
+        return ['nisn.required' => 'NISN wajib diisi.', 'nisn.regex' => 'NISN hanya angka, maks 10 digit.', 'nisn.unique' => 'NISN sudah terdaftar.', 'rfid_tag.unique' => 'RFID sudah dipakai siswa lain.', 'tempat_lahir.max' => 'Tempat lahir maks 50 karakter.', 'tanggal_lahir.date' => 'Tanggal lahir tidak valid.', 'tanggal_lahir.before_or_equal' => 'Tanggal lahir tidak boleh masa depan.', 'tahun_masuk.integer' => 'Tahun masuk harus angka.', 'tahun_masuk.min' => 'Tahun masuk minimal 2000.', 'tahun_masuk.max' => 'Tahun masuk maksimal 2100.', 'foto.mimes' => 'Pas foto harus jpg/png/webp.', 'foto.max' => 'Pas foto maks 300 Kb.', 'kelas_id.required' => 'Pilih kelas dulu.', 'kelas_id.exists' => 'Kelas tidak valid, buat dulu di menu Kelas.', 'gender.in' => 'Gender harus L atau P.', 'no_hp_ortu.regex' => 'No HP ortu/wali tidak valid.'];
     }
 }
