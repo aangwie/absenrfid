@@ -199,7 +199,13 @@ class NotifikasiAbsensiTest extends TestCase
 
         $this->assertSame('10', \App\Models\Pengaturan::nilai('wa_batch_menit'));
         $this->assertSame('10', \App\Models\Pengaturan::nilai('wa_batch_jumlah'));
+        $this->assertSame('1', \App\Models\Pengaturan::nilai('wa_kirim_tepat_waktu'));
         $this->assertSame(60, \App\Support\AntreanWhatsapp::jedaDetik());
+
+        $this->actingAs($admin)->get(route('whatsapp.index'))
+            ->assertOk()
+            ->assertSee('Status Pesan yang Dikirim')
+            ->assertSee('Tepat Waktu');
 
         $this->actingAs($admin)->post(route('whatsapp.simpan'), [
             'wa_url' => 'https://wa.contoh.com/send-message',
@@ -227,11 +233,64 @@ class NotifikasiAbsensiTest extends TestCase
         $this->assertSame(60, (int) round($satu->jadwal_kirim->diffInSeconds($dua->jadwal_kirim)));
         $this->assertSame(60, (int) round($dua->jadwal_kirim->diffInSeconds($tiga->jadwal_kirim)));
 
-        // Terlambat tidak ditampung: tidak ikut antrean 60 detik.
+        // Semua status yang dicentang memakai antrean dan jeda yang sama.
         $terlambat = \App\Support\AntreanWhatsapp::antre($siswa, $tanggal, 'masuk', 'Terlambat', 'pesan 4');
-        $this->assertTrue($terlambat->jadwal_kirim->lessThan($dua->jadwal_kirim));
+        $pulang = \App\Support\AntreanWhatsapp::antre($siswa, $tanggal, 'pulang', 'Selesai', 'pesan 5');
+        $this->assertSame(60, (int) round($tiga->jadwal_kirim->diffInSeconds($terlambat->jadwal_kirim)));
+        $this->assertSame(60, (int) round($terlambat->jadwal_kirim->diffInSeconds($pulang->jadwal_kirim)));
 
-        \Illuminate\Support\Facades\Queue::assertPushed(KirimNotifikasiAbsensi::class, 4);
+        // Notifikasi manual (Izin/Sakit) tetap boleh dan ikut antrean.
+        $manual = \App\Support\AntreanWhatsapp::antre($siswa, $tanggal, 'masuk', 'Izin', 'pesan 6');
+        $this->assertNotNull($manual);
+        $this->assertSame(60, (int) round($pulang->jadwal_kirim->diffInSeconds($manual->jadwal_kirim)));
+
+        \Illuminate\Support\Facades\Queue::assertPushed(KirimNotifikasiAbsensi::class, 6);
+    }
+
+    public function test_status_yang_tidak_dicentang_tidak_dibuatkan_notifikasi(): void
+    {
+        $this->setPengaturanWa([
+            'wa_kirim_tepat_waktu' => '0',
+            'wa_kirim_terlambat' => '1',
+            'wa_kirim_pulang' => '0',
+        ]);
+
+        $siswa = $this->siswaUji('TAGMATI', '0099004400');
+        $tanggal = now()->toDateString();
+
+        $this->assertNull(\App\Support\AntreanWhatsapp::antre($siswa, $tanggal, 'masuk', 'Tepat Waktu', 'matikan'));
+        $this->assertNull(\App\Support\AntreanWhatsapp::antre($siswa, $tanggal, 'pulang', 'Selesai', 'matikan'));
+
+        $aktif = \App\Support\AntreanWhatsapp::antre($siswa, $tanggal, 'masuk', 'Terlambat', 'kirim');
+        $this->assertNotNull($aktif);
+        $this->assertSame(1, NotifikasiLog::count());
+    }
+
+    public function test_menonaktifkan_status_membatalkan_antrean_lama(): void
+    {
+        $admin = \App\Models\User::factory()->create();
+        $log = NotifikasiLog::create([
+            'nisn' => '0099005500', 'tanggal' => now()->toDateString(), 'tipe' => 'pulang',
+            'keterangan' => 'Selesai', 'nomor_tujuan' => '6281234567890',
+            'pesan' => 'tes nonaktif', 'status' => 'antre', 'jadwal_kirim' => now()->addHour(),
+        ]);
+
+        $this->actingAs($admin)->post(route('whatsapp.simpan'), [
+            'wa_url' => 'https://wa.contoh.com/send-message',
+            'wa_api_key' => 'KUNCI',
+            'wa_number' => '6281111111111',
+            'wa_batch_menit' => 10,
+            'wa_batch_jumlah' => 10,
+            'wa_kirim_tepat_waktu' => '1',
+            'wa_kirim_terlambat' => '1',
+            'wa_kirim_pulang' => '0',
+        ])->assertRedirect(route('whatsapp.index', ['tab' => 'konfigurasi']));
+
+        $log->refresh();
+        $this->assertSame('batal', $log->status);
+        $this->assertSame('Dinonaktifkan di pengaturan WhatsApp.', $log->respons);
+        $this->assertSame('0', \App\Models\Pengaturan::nilai('wa_kirim_pulang'));
+        $this->assertSame('1', \App\Models\Pengaturan::nilai('wa_kirim_tepat_waktu'));
     }
 
     public function test_pesan_antrean_bisa_dibatalkan_dan_tidak_terkirim(): void

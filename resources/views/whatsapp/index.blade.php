@@ -32,8 +32,26 @@
 
       <div class="border-t border-slate-700/60 pt-4 mt-1 flex flex-col gap-3">
         <div>
-          <h3 class="text-xs font-bold text-white">Penjadwalan Notifikasi Masuk Tepat Waktu</h3>
-          <p class="text-[11px] text-slate-500 mt-1">Pesan <span class="text-emerald-300 font-medium">MASUK Tepat Waktu</span> ditampung dulu lalu dikirim bertahap agar nomor tidak diblokir WhatsApp. Status lain (Terlambat, Izin, Sakit, Pulang, tandai manual) tetap dikirim segera dengan jeda pengaman 10 detik.</p>
+          <h3 class="text-xs font-bold text-white">Status Pesan yang Dikirim</h3>
+          <p class="text-[11px] text-slate-500 mt-1">Centang status yang ingin dikirim. Hanya status tercentang yang dibuatkan notifikasi, dan semuanya dikirim lewat satu antrean dengan kecepatan di bawah. Status yang tidak dicentang tidak dikirim.</p>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          @foreach (\App\Support\AntreanWhatsapp::KATEGORI as $kategori => $label)
+          @php($kunci = \App\Support\AntreanWhatsapp::kunciKategori($kategori))
+          <label class="flex items-center gap-2.5 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-slate-200 cursor-pointer hover:border-indigo-500/60">
+            <input type="hidden" name="{{ $kunci }}" value="0">
+            <input type="checkbox" name="{{ $kunci }}" value="1" class="w-4 h-4 accent-indigo-500" @checked(old($kunci, $cfg[$kunci] ?? '1') === '1')>
+            <span class="font-semibold">{{ $label }}</span>
+          </label>
+          @endforeach
+        </div>
+        <p class="text-[11px] text-slate-500">Notifikasi dari aksi <span class="text-slate-300 font-medium">Tandai</span> manual di halaman Laporan (Izin, Sakit, Tanpa Keterangan) selalu dikirim karena merupakan tindakan admin.</p>
+      </div>
+
+      <div class="border-t border-slate-700/60 pt-4 mt-1 flex flex-col gap-3">
+        <div>
+          <h3 class="text-xs font-bold text-white">Durasi dan Jumlah Pesan</h3>
+          <p class="text-[11px] text-slate-500 mt-1">Pesan yang dicentang dikirim bertahap agar nomor tidak diblokir WhatsApp.</p>
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div>
@@ -46,7 +64,7 @@
           </div>
         </div>
         <p id="wa-batch-info" class="text-[11px] text-sky-300 bg-sky-500/10 border border-sky-500/30 rounded-lg px-3 py-2"></p>
-        <p class="text-[11px] text-slate-500">Contoh: durasi 10 menit + 10 pesan = 1 pesan tiap 60 detik. Bila ada 90 pesan tepat waktu, pengiriman selesai dalam ±90 menit.</p>
+        <p class="text-[11px] text-slate-500">Contoh: durasi 10 menit + 10 pesan = 1 pesan tiap 60 detik. Bila ada 90 pesan, pengiriman selesai dalam ±90 menit.</p>
       </div>
 
       <div><button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-4 py-2 rounded-xl">Simpan</button></div>
@@ -76,12 +94,12 @@
     <div class="flex flex-col sm:flex-row sm:items-center gap-2 mb-1">
       <h2 class="text-base font-semibold text-white flex-1">Antrean Pesan WhatsApp</h2>
     </div>
-    <p class="text-[11px] text-slate-500 mb-4">Pesan yang sudah dijadwalkan tetapi belum terkirim. Pengiriman mengikuti durasi dan jumlah pesan di tab Konfigurasi. Pesan yang belum terkirim bisa dibatalkan di sini.</p>
+    <p class="text-[11px] text-slate-500 mb-4">Pesan dari status yang dicentang di tab Konfigurasi, sudah dijadwalkan tetapi belum terkirim. Semua memakai kecepatan yang sama. Pesan yang belum terkirim bisa dibatalkan di sini.</p>
 
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4 text-xs">
       <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-3"><p class="text-slate-500">Jumlah antre</p><p class="font-mono font-bold text-amber-300 text-base">{{ $jumlahAntre }}</p></div>
       <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-3"><p class="text-slate-500">Jeda per pesan</p><p class="font-mono font-bold text-white text-base">{{ $jadwal['jeda'] }} dtk</p></div>
-      <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-3"><p class="text-slate-500">Ditampung (tepat waktu)</p><p class="font-mono font-bold text-sky-300 text-base">{{ $jadwal['ditampung'] }}</p></div>
+      <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-3"><p class="text-slate-500">Status dikirim</p><p class="font-semibold text-sky-300 text-sm">{{ $jadwal['aktif'] ? implode(', ', $jadwal['aktif']) : 'Tidak ada' }}</p></div>
       <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-3"><p class="text-slate-500">Perkiraan pesan terakhir</p><p class="font-mono font-bold text-emerald-300 text-base">{{ $jadwal['terakhir'] ? $jadwal['terakhir']->format('d/m H:i') : '-' }}</p></div>
     </div>
 

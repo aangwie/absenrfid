@@ -161,9 +161,9 @@ class TapAbsensi
 
     /**
      * Catat notifikasi absensi ke tb_notifikasi_log lalu antrekan pengiriman
-     * WA ke ortu/wali. Absensi MASUK "Tepat Waktu" ditampung dan dikirim
-     * bertahap sesuai pengaturan durasi/jumlah di menu WhatsApp; status lain
-     * (Terlambat, Izin, Sakit, Pulang) dikirim segera dengan jeda pengaman.
+     * WA ke ortu/wali. Hanya status yang dicentang di pengaturan WhatsApp yang
+     * dikirim (Tepat Waktu, Terlambat, Pulang); semuanya masuk antrean
+     * bertahap sesuai durasi/jumlah.
      */
     private function antrekanNotifikasi(Siswa $siswa, string $tanggal, string $jam, string $tipe, string $status): void
     {

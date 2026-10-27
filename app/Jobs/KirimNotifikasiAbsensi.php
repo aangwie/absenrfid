@@ -35,6 +35,18 @@ class KirimNotifikasiAbsensi implements ShouldQueue
             return;
         }
 
+        // Status yang dinonaktifkan di pengaturan tidak boleh terkirim walau
+        // job-nya sudah telanjur masuk antrean.
+        if (! AntreanWhatsapp::aktif($log->tipe, $log->keterangan)) {
+            $log->update([
+                'status' => 'batal',
+                'dibatalkan_at' => now(),
+                'respons' => 'Dinonaktifkan di pengaturan WhatsApp.',
+            ]);
+
+            return;
+        }
+
         DB::table('tb_pengaturan')->updateOrInsert(['kunci' => 'cron_last_run'], ['nilai' => now()->toDateTimeString(), 'updated_at' => now(), 'created_at' => now()]);
 
         // Belum waktunya dikirim (jadwal atau jeda antar pesan). Kembalikan ke
@@ -72,7 +84,7 @@ class KirimNotifikasiAbsensi implements ShouldQueue
 
         // Pesan slot lebih dulu agar worker lain tidak mengirim pesan
         // berikutnya pada detik yang sama (mis. setelah cron tertinggal).
-        $this->tandaiSlot($log);
+        $this->tandaiSlot();
 
         try {
             $res = Http::withHeaders(['Content-Type' => 'application/x-www-form-urlencoded'])
@@ -113,11 +125,10 @@ class KirimNotifikasiAbsensi implements ShouldQueue
             $tunggu = $log->jadwal_kirim->getTimestamp() - now()->getTimestamp();
         }
 
-        $terakhir = Pengaturan::nilai($this->kunciSlot($log));
+        $terakhir = Pengaturan::nilai('wa_terakhir_kirim');
         if ($terakhir !== '') {
             try {
-                $jeda = $this->jedaUntuk($log);
-                $tunggu = max($tunggu, Carbon::parse($terakhir)->getTimestamp() + $jeda - now()->getTimestamp());
+                $tunggu = max($tunggu, Carbon::parse($terakhir)->getTimestamp() + AntreanWhatsapp::jedaDetik() - now()->getTimestamp());
             } catch (\Throwable $e) {
                 // Nilai pengaturan rusak: abaikan pembatas, tetap kirim.
             }
@@ -126,25 +137,10 @@ class KirimNotifikasiAbsensi implements ShouldQueue
         return max(0, (int) ceil($tunggu));
     }
 
-    /** Kunci pengaturan penyimpan waktu kirim terakhir, dipisah per jalur. */
-    private function kunciSlot(NotifikasiLog $log): string
-    {
-        return AntreanWhatsapp::perluDitampung($log->tipe, $log->keterangan)
-            ? 'wa_terakhir_tepat'
-            : 'wa_terakhir_lain';
-    }
-
-    private function jedaUntuk(NotifikasiLog $log): int
-    {
-        return AntreanWhatsapp::perluDitampung($log->tipe, $log->keterangan)
-            ? AntreanWhatsapp::jedaDetik()
-            : AntreanWhatsapp::JEDA_LAIN;
-    }
-
-    private function tandaiSlot(NotifikasiLog $log): void
+    private function tandaiSlot(): void
     {
         DB::table('tb_pengaturan')->updateOrInsert(
-            ['kunci' => $this->kunciSlot($log)],
+            ['kunci' => 'wa_terakhir_kirim'],
             ['nilai' => now()->toDateTimeString(), 'updated_at' => now(), 'created_at' => now()]
         );
     }

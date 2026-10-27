@@ -6,18 +6,21 @@ use App\Jobs\KirimNotifikasiAbsensi;
 use App\Models\NotifikasiLog;
 use App\Models\Pengaturan;
 use App\Models\Siswa;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 
 /**
  * Penjadwal antrean notifikasi WhatsApp.
  *
- * Notifikasi "MASUK tepat waktu" ditampung lebih dulu, lalu dikirim bertahap
- * dengan kecepatan yang diatur admin (mis. 10 menit / 10 pesan = 1 pesan tiap
- * 60 detik). Notifikasi lain (terlambat, izin/sakit, pulang, tandai manual)
- * tetap segera dikirim dengan jeda pengaman agar tidak menumpuk.
+ * Hanya status yang dicentang di menu WhatsApp yang dikirim:
+ * tepat waktu, terlambat, dan pulang. Semua pesan terpilih masuk satu antrean
+ * dan dikirim bertahap sesuai pengaturan durasi/jumlah (mis. 10 menit /
+ * 10 pesan = 1 pesan tiap 60 detik). Status yang tidak dicentang tidak dibuat
+ * notifikasinya. Notifikasi dari aksi "Tandai" manual di /laporan selalu
+ * dikirim karena merupakan tindakan admin.
  *
- * Semua pesan tetap tercatat di tb_notifikasi_log beserta jadwal kirimnya,
- * sehingga admin bisa melihat dan membatalkan antrean yang belum terkirim.
+ * Semua pesan tercatat di tb_notifikasi_log beserta jadwal kirimnya sehingga
+ * admin bisa melihat dan membatalkan antrean yang belum terkirim.
  */
 class AntreanWhatsapp
 {
@@ -27,8 +30,12 @@ class AntreanWhatsapp
     /** Jumlah pesan bawaan per durasi. */
     public const JUMLAH_DEFAULT = 10;
 
-    /** Jeda pengaman antar pesan yang tidak ditampung (detik). */
-    public const JEDA_LAIN = 10;
+    /** Status yang bisa dipilih untuk dikirim: kunci => label. */
+    public const KATEGORI = [
+        'tepat_waktu' => 'Tepat Waktu',
+        'terlambat' => 'Terlambat',
+        'pulang' => 'Pulang',
+    ];
 
     public static function durasiMenit(): int
     {
@@ -40,60 +47,101 @@ class AntreanWhatsapp
         return max(1, (int) Pengaturan::nilai('wa_batch_jumlah', (string) self::JUMLAH_DEFAULT));
     }
 
-    /** Jarak antar pesan yang ditampung, dalam detik. */
+    /** Jarak antar pesan dalam antrean, dalam detik. */
     public static function jedaDetik(): int
     {
         return max(1, (int) round(self::durasiMenit() * 60 / self::jumlahPesan()));
     }
 
-    /**
-     * Hanya absensi MASUK berstatus Tepat Waktu yang ditampung. Status lain
-     * (Terlambat, Izin, Sakit, Tanpa Keterangan, Selesai) dikirim segera.
-     */
-    public static function perluDitampung(string $tipe, ?string $keterangan): bool
+    /** Kategori sebuah notifikasi: tepat_waktu, terlambat, pulang, atau lain. */
+    public static function kategori(string $tipe, ?string $keterangan): string
     {
-        return $tipe === 'masuk' && trim((string) $keterangan) === 'Tepat Waktu';
+        if ($tipe === 'pulang') {
+            return 'pulang';
+        }
+
+        $keterangan = trim((string) $keterangan);
+        if ($tipe === 'masuk') {
+            if ($keterangan === 'Tepat Waktu') {
+                return 'tepat_waktu';
+            }
+            if ($keterangan === 'Terlambat') {
+                return 'terlambat';
+            }
+        }
+
+        return 'lain';
+    }
+
+    public static function kunciKategori(string $kategori): string
+    {
+        return 'wa_kirim_' . $kategori;
     }
 
     /**
-     * Tentukan waktu kirim untuk pesan baru: melanjutkan jadwal terakhir pada
-     * jalur yang sama, atau sekarang bila jalur sedang kosong.
+     * Apakah notifikasi dengan status ini boleh dikirim. Kategori "lain"
+     * (tandai manual Izin/Sakit/Tanpa Keterangan) selalu boleh.
      */
-    public static function jadwalkan(string $tipe, ?string $keterangan): Carbon
+    public static function aktif(string $tipe, ?string $keterangan): bool
     {
-        $ditampung = self::perluDitampung($tipe, $keterangan);
-
-        $query = NotifikasiLog::query()
-            ->antre()
-            ->whereNotNull('jadwal_kirim');
-
-        if ($ditampung) {
-            $query->where('tipe', 'masuk')
-                ->where('keterangan', 'Tepat Waktu');
-        } else {
-            // Semua yang bukan "masuk tepat waktu" memakai jalur cepat.
-            $query->where(function ($q) {
-                $q->where('tipe', '!=', 'masuk')
-                    ->orWhereNull('keterangan')
-                    ->orWhere('keterangan', '!=', 'Tepat Waktu');
-            });
+        $kategori = self::kategori($tipe, $keterangan);
+        if ($kategori === 'lain') {
+            return true;
         }
 
-        $terakhir = $query->max('jadwal_kirim');
-        $sekarang = now();
+        return Pengaturan::nilai(self::kunciKategori($kategori), '1') !== '0';
+    }
 
+    /** Label status yang sedang aktif, untuk ditampilkan di UI. */
+    public static function aktifLabel(): array
+    {
+        $label = [];
+        foreach (self::KATEGORI as $kategori => $teks) {
+            if (Pengaturan::nilai(self::kunciKategori($kategori), '1') !== '0') {
+                $label[] = $teks;
+            }
+        }
+
+        return $label;
+    }
+
+    /** Query log untuk satu kategori status. */
+    public static function queryKategori(string $kategori): Builder
+    {
+        $query = NotifikasiLog::query();
+
+        return match ($kategori) {
+            'tepat_waktu' => $query->where('tipe', 'masuk')->where('keterangan', 'Tepat Waktu'),
+            'terlambat' => $query->where('tipe', 'masuk')->where('keterangan', 'Terlambat'),
+            'pulang' => $query->where('tipe', 'pulang'),
+            default => $query->where('tipe', 'masuk')->whereNotIn('keterangan', ['Tepat Waktu', 'Terlambat']),
+        };
+    }
+
+    /**
+     * Tentukan waktu kirim untuk pesan baru: melanjutkan jadwal antrean
+     * terakhir, atau sekarang bila antrean sedang kosong.
+     */
+    public static function jadwalkan(): Carbon
+    {
+        $terakhir = NotifikasiLog::query()
+            ->antre()
+            ->whereNotNull('jadwal_kirim')
+            ->max('jadwal_kirim');
+
+        $sekarang = now();
         if (! $terakhir) {
             return $sekarang;
         }
 
-        $jeda = $ditampung ? self::jedaDetik() : self::JEDA_LAIN;
-        $berikut = Carbon::parse($terakhir)->addSeconds($jeda);
+        $berikut = Carbon::parse($terakhir)->addSeconds(self::jedaDetik());
 
         return $berikut->greaterThan($sekarang) ? $berikut : $sekarang;
     }
 
     /**
-     * Catat notifikasi lalu antrekan pengirimannya.
+     * Catat notifikasi lalu antrekan pengirimannya. Mengembalikan null bila
+     * statusnya tidak dicentang di pengaturan.
      *
      * @param  bool  $langsung  Kirim sinkron saat itu juga (dipakai aksi Tandai
      *                          satu siswa di /laporan agar status bisa tampil).
@@ -105,9 +153,13 @@ class AntreanWhatsapp
         ?string $keterangan,
         string $pesan,
         bool $langsung = false
-    ): NotifikasiLog {
+    ): ?NotifikasiLog {
+        if (! self::aktif($tipe, $keterangan)) {
+            return null;
+        }
+
         $tujuan = KirimNotifikasiAbsensi::normalisasiNomor($siswa->no_hp_ortu);
-        $jadwal = $langsung ? now() : self::jadwalkan($tipe, $keterangan);
+        $jadwal = $langsung ? now() : self::jadwalkan();
 
         $log = NotifikasiLog::create([
             'nisn' => $siswa->nisn,
@@ -137,6 +189,16 @@ class AntreanWhatsapp
         }
 
         return $log->refresh();
+    }
+
+    /** Batalkan seluruh antrean pada satu kategori; mengembalikan jumlahnya. */
+    public static function batalkanKategori(string $kategori): int
+    {
+        return self::queryKategori($kategori)->antre()->update([
+            'status' => 'batal',
+            'dibatalkan_at' => now(),
+            'respons' => 'Dinonaktifkan di pengaturan WhatsApp.',
+        ]);
     }
 
     /** Perkiraan kapan seluruh antrean selesai dikirim (null bila kosong). */

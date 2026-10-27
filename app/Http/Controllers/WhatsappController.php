@@ -37,8 +37,7 @@ class WhatsappController extends Controller
         $jadwal = $tab === 'antrean' ? [
             'jeda' => AntreanWhatsapp::jedaDetik(),
             'terakhir' => AntreanWhatsapp::perkiraanSelesai(),
-            'ditampung' => NotifikasiLog::query()->antre()
-                ->where('tipe', 'masuk')->where('keterangan', 'Tepat Waktu')->count(),
+            'aktif' => AntreanWhatsapp::aktifLabel(),
         ] : null;
 
         return view('whatsapp.index', compact('tab', 'cfg', 'logs', 'cron', 'antrean', 'jadwal', 'jumlahAntre'));
@@ -52,6 +51,9 @@ class WhatsappController extends Controller
             'wa_number' => ['required', 'string', 'max:30'],
             'wa_batch_menit' => ['nullable', 'integer', 'min:1', 'max:1440'],
             'wa_batch_jumlah' => ['nullable', 'integer', 'min:1', 'max:1440'],
+            'wa_kirim_tepat_waktu' => ['nullable', 'boolean'],
+            'wa_kirim_terlambat' => ['nullable', 'boolean'],
+            'wa_kirim_pulang' => ['nullable', 'boolean'],
         ], [
             'wa_url.required' => 'URL API wajib diisi.',
             'wa_url.url' => 'URL API tidak valid.',
@@ -73,16 +75,40 @@ class WhatsappController extends Controller
             'wa_batch_jumlah' => (string) ($data['wa_batch_jumlah'] ?? AntreanWhatsapp::jumlahPesan()),
         ];
 
+        // Checkbox dikirim bersama hidden input bernilai 0, jadi field selalu
+        // ada. Bila benar-benar tidak ada (form lama), pertahankan nilai lama.
+        foreach (array_keys(AntreanWhatsapp::KATEGORI) as $kategori) {
+            $kunci = AntreanWhatsapp::kunciKategori($kategori);
+            $nilai[$kunci] = $request->has($kunci)
+                ? ($request->boolean($kunci) ? '1' : '0')
+                : (Pengaturan::nilai($kunci, '1') === '0' ? '0' : '1');
+        }
+
         foreach ($nilai as $k => $v) {
             DB::table('tb_pengaturan')->updateOrInsert(['kunci' => $k], ['nilai' => $v, 'updated_at' => now(), 'created_at' => now()]);
         }
 
         Pengaturan::lupakan();
 
-        $perMenit = max(1, (int) round(AntreanWhatsapp::jumlahPesan() / AntreanWhatsapp::durasiMenit()));
+        // Antrean milik status yang baru dinonaktifkan langsung dibatalkan,
+        // supaya tidak menunggu worker dan tidak tampil sebagai "Antre".
+        $dibatalkan = 0;
+        foreach (array_keys(AntreanWhatsapp::KATEGORI) as $kategori) {
+            if ($nilai[AntreanWhatsapp::kunciKategori($kategori)] === '0') {
+                $dibatalkan += AntreanWhatsapp::batalkanKategori($kategori);
+            }
+        }
 
-        return redirect()->route('whatsapp.index', ['tab' => 'konfigurasi'])
-            ->with('ok', 'Konfigurasi WhatsApp tersimpan. Jadwal kirim: ±' . $perMenit . ' pesan/menit (1 pesan tiap ' . AntreanWhatsapp::jedaDetik() . ' detik).');
+        $perMenit = max(1, (int) round(AntreanWhatsapp::jumlahPesan() / AntreanWhatsapp::durasiMenit()));
+        $aktif = AntreanWhatsapp::aktifLabel();
+
+        $pesan = 'Konfigurasi WhatsApp tersimpan. Jadwal kirim: ±' . $perMenit . ' pesan/menit (1 pesan tiap ' . AntreanWhatsapp::jedaDetik() . ' detik). '
+            . 'Status dikirim: ' . ($aktif ? implode(', ', $aktif) : 'tidak ada') . '.';
+        if ($dibatalkan > 0) {
+            $pesan .= " {$dibatalkan} antrean dibatalkan karena statusnya dinonaktifkan.";
+        }
+
+        return redirect()->route('whatsapp.index', ['tab' => 'konfigurasi'])->with('ok', $pesan);
     }
 
     public function uji(Request $request)

@@ -222,6 +222,10 @@ class LaporanController extends Controller
             $pesan = KirimNotifikasiAbsensi::susunPesanTandai($siswa, $status, $jam, $tanggal);
             $log = AntreanWhatsapp::antre($siswa, $tanggal, 'masuk', $status, $pesan, $langsung);
 
+            if (! $log) {
+                return '';
+            }
+
             if ($log->status === 'gagal') {
                 return 'gagal';
             }
