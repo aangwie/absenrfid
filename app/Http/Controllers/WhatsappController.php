@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Jobs\CronPing;
 use App\Models\NotifikasiLog;
 use App\Models\Pengaturan;
+use App\Support\AntreanWhatsapp;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -15,17 +16,32 @@ class WhatsappController extends Controller
     public function index(Request $request)
     {
         $tab = $request->get('tab', 'konfigurasi');
-        if (! in_array($tab, ['konfigurasi', 'uji', 'log', 'cron'])) {
+        if (! in_array($tab, ['konfigurasi', 'antrean', 'uji', 'log', 'cron'], true)) {
             $tab = 'konfigurasi';
         }
-        $def = ['wa_url' => '', 'wa_api_key' => '', 'wa_number' => ''];
+        $def = [
+            'wa_url' => '', 'wa_api_key' => '', 'wa_number' => '',
+            'wa_batch_menit' => (string) AntreanWhatsapp::DURASI_DEFAULT,
+            'wa_batch_jumlah' => (string) AntreanWhatsapp::JUMLAH_DEFAULT,
+        ];
         $cfg = array_merge($def, Pengaturan::ambil());
+
+        $jumlahAntre = NotifikasiLog::query()->antre()->count();
         $logs = $tab === 'log'
             ? NotifikasiLog::with('siswa')->orderByDesc('id')->paginate(10)->withQueryString()
             : null;
+        $antrean = $tab === 'antrean'
+            ? NotifikasiLog::with('siswa')->antre()->orderBy('jadwal_kirim')->orderBy('id')->paginate(20)->withQueryString()
+            : null;
         $cron = $tab === 'cron' ? $this->statusCron($request) : null;
+        $jadwal = $tab === 'antrean' ? [
+            'jeda' => AntreanWhatsapp::jedaDetik(),
+            'terakhir' => AntreanWhatsapp::perkiraanSelesai(),
+            'ditampung' => NotifikasiLog::query()->antre()
+                ->where('tipe', 'masuk')->where('keterangan', 'Tepat Waktu')->count(),
+        ] : null;
 
-        return view('whatsapp.index', ['tab' => $tab, 'cfg' => $cfg, 'logs' => $logs, 'cron' => $cron]);
+        return view('whatsapp.index', compact('tab', 'cfg', 'logs', 'cron', 'antrean', 'jadwal', 'jumlahAntre'));
     }
 
     public function simpan(Request $request)
@@ -34,20 +50,39 @@ class WhatsappController extends Controller
             'wa_url' => ['required', 'url', 'max:500'],
             'wa_api_key' => ['required', 'string', 'max:500'],
             'wa_number' => ['required', 'string', 'max:30'],
+            'wa_batch_menit' => ['nullable', 'integer', 'min:1', 'max:1440'],
+            'wa_batch_jumlah' => ['nullable', 'integer', 'min:1', 'max:1440'],
         ], [
             'wa_url.required' => 'URL API wajib diisi.',
             'wa_url.url' => 'URL API tidak valid.',
             'wa_api_key.required' => 'API Key wajib diisi.',
             'wa_number.required' => 'Number pengirim wajib diisi.',
+            'wa_batch_menit.integer' => 'Durasi harus berupa angka (menit).',
+            'wa_batch_menit.min' => 'Durasi minimal 1 menit.',
+            'wa_batch_menit.max' => 'Durasi maksimal 1440 menit (24 jam).',
+            'wa_batch_jumlah.integer' => 'Jumlah pesan harus berupa angka.',
+            'wa_batch_jumlah.min' => 'Jumlah pesan minimal 1.',
+            'wa_batch_jumlah.max' => 'Jumlah pesan maksimal 1440.',
         ]);
 
-        foreach (['wa_url' => trim($data['wa_url']), 'wa_api_key' => trim($data['wa_api_key']), 'wa_number' => trim($data['wa_number'])] as $k => $v) {
+        $nilai = [
+            'wa_url' => trim($data['wa_url']),
+            'wa_api_key' => trim($data['wa_api_key']),
+            'wa_number' => trim($data['wa_number']),
+            'wa_batch_menit' => (string) ($data['wa_batch_menit'] ?? AntreanWhatsapp::durasiMenit()),
+            'wa_batch_jumlah' => (string) ($data['wa_batch_jumlah'] ?? AntreanWhatsapp::jumlahPesan()),
+        ];
+
+        foreach ($nilai as $k => $v) {
             DB::table('tb_pengaturan')->updateOrInsert(['kunci' => $k], ['nilai' => $v, 'updated_at' => now(), 'created_at' => now()]);
         }
 
         Pengaturan::lupakan();
 
-        return redirect()->route('whatsapp.index', ['tab' => 'konfigurasi'])->with('ok', 'Konfigurasi WhatsApp tersimpan.');
+        $perMenit = max(1, (int) round(AntreanWhatsapp::jumlahPesan() / AntreanWhatsapp::durasiMenit()));
+
+        return redirect()->route('whatsapp.index', ['tab' => 'konfigurasi'])
+            ->with('ok', 'Konfigurasi WhatsApp tersimpan. Jadwal kirim: ±' . $perMenit . ' pesan/menit (1 pesan tiap ' . AntreanWhatsapp::jedaDetik() . ' detik).');
     }
 
     public function uji(Request $request)
@@ -203,6 +238,20 @@ class WhatsappController extends Controller
         }
 
         return $data;
+    }
+
+    /** Batalkan satu pesan yang belum terkirim. */
+    public function batalkan(NotifikasiLog $log)
+    {
+        if ($log->status !== 'antre') {
+            return redirect()->route('whatsapp.index', ['tab' => 'antrean'])
+                ->withErrors(['msg' => 'Pesan ini sudah diproses (' . $log->status . '), tidak bisa dibatalkan.']);
+        }
+
+        $log->update(['status' => 'batal', 'dibatalkan_at' => now()]);
+
+        return redirect()->route('whatsapp.index', ['tab' => 'antrean'])
+            ->with('ok', 'Antrean untuk ' . ($log->siswa->nama ?? $log->nisn) . ' dibatalkan.');
     }
 
     public function hapusLog(Request $request)

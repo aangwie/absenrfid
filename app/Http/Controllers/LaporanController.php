@@ -4,8 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Jobs\KirimNotifikasiAbsensi;
 use App\Models\Absensi;
-use App\Models\NotifikasiLog;
 use App\Models\Siswa;
+use App\Support\AntreanWhatsapp;
 use Illuminate\Http\Request;
 use ZipArchive;
 
@@ -219,33 +219,16 @@ class LaporanController extends Controller
     private function antrekanNotifikasi(Siswa $siswa, string $tanggal, string $jam, string $status, bool $langsung = true): string
     {
         try {
-            $tujuan = KirimNotifikasiAbsensi::normalisasiNomor($siswa->no_hp_ortu);
             $pesan = KirimNotifikasiAbsensi::susunPesanTandai($siswa, $status, $jam, $tanggal);
-            $log = NotifikasiLog::create([
-                'nisn' => $siswa->nisn,
-                'tanggal' => $tanggal,
-                'tipe' => 'masuk',
-                'nomor_tujuan' => $tujuan !== '' ? $tujuan : trim((string) $siswa->no_hp_ortu),
-                'pesan' => $pesan,
-                'status' => 'antre',
-            ]);
-            if ($tujuan === '') {
-                $log->update(['status' => 'gagal', 'respons' => 'Nomor HP ortu/wali kosong atau tidak valid.', 'sent_at' => now()]);
+            $log = AntreanWhatsapp::antre($siswa, $tanggal, 'masuk', $status, $pesan, $langsung);
 
+            if ($log->status === 'gagal') {
                 return 'gagal';
             }
-            if (! $langsung) {
-                // Jeda 10 detik per notifikasi, sama seperti alur tap RFID.
-                $menunggu = NotifikasiLog::where('status', 'antre')->where('id', '<', $log->id)->count();
-                KirimNotifikasiAbsensi::dispatch($log->id)->delay(now()->addSeconds(10 * ($menunggu + 1)));
 
-                return 'antre';
-            }
-            // Kirim seketika agar hasil bisa ditampilkan pada toast.
-            (new KirimNotifikasiAbsensi($log->id))->handle();
-            $log->refresh();
-
-            return $log->status === 'terkirim' ? 'berhasil' : 'gagal';
+            return $langsung
+                ? ($log->status === 'terkirim' ? 'berhasil' : 'gagal')
+                : 'antre';
         } catch (\Throwable $e) {
             report($e);
 

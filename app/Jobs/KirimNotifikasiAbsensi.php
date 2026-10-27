@@ -5,8 +5,10 @@ namespace App\Jobs;
 use App\Models\NotifikasiLog;
 use App\Models\Pengaturan;
 use App\Models\Siswa;
+use App\Support\AntreanWhatsapp;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 
@@ -14,7 +16,15 @@ class KirimNotifikasiAbsensi implements ShouldQueue
 {
     use Queueable;
 
-    public $tries = 3;
+    /**
+     * Tanpa batas: job boleh "menunggu jadwal" dengan release() berkali-kali
+     * tanpa dianggap gagal. Status akhir (terkirim/gagal) selalu ditulis
+     * sendiri di handle(), jadi tidak ada percobaan ulang yang menduplikasi
+     * pesan.
+     */
+    public $tries = 0;
+
+    public $timeout = 40;
 
     public function __construct(public int $logId) {}
 
@@ -24,15 +34,15 @@ class KirimNotifikasiAbsensi implements ShouldQueue
         if (! $log || $log->status !== 'antre') {
             return;
         }
+
         DB::table('tb_pengaturan')->updateOrInsert(['kunci' => 'cron_last_run'], ['nilai' => now()->toDateTimeString(), 'updated_at' => now(), 'created_at' => now()]);
 
-        // Jaga jeda 10 detik antar notifikasi: bila masih ada antrean yang
-        // lebih dulu dibuat dan belum terkirim, tunda lagi 10 detik.
-        $masihAdaAntrianLama = NotifikasiLog::where('status', 'antre')
-            ->where('id', '<', $log->id)
-            ->exists();
-        if ($masihAdaAntrianLama) {
-            $this->release(10);
+        // Belum waktunya dikirim (jadwal atau jeda antar pesan). Kembalikan ke
+        // antrean. Saat dipanggil langsung tanpa queue ($this->job kosong,
+        // misal aksi Tandai satu siswa) pesan tetap dikirim seketika.
+        $tunggu = $this->detikMenunggu($log);
+        if ($tunggu > 0 && $this->job) {
+            $this->release($tunggu);
 
             return;
         }
@@ -53,6 +63,16 @@ class KirimNotifikasiAbsensi implements ShouldQueue
 
             return;
         }
+
+        // Pesan bisa saja dibatalkan admin saat job masih menunggu.
+        $log->refresh();
+        if ($log->status !== 'antre') {
+            return;
+        }
+
+        // Pesan slot lebih dulu agar worker lain tidak mengirim pesan
+        // berikutnya pada detik yang sama (mis. setelah cron tertinggal).
+        $this->tandaiSlot($log);
 
         try {
             $res = Http::withHeaders(['Content-Type' => 'application/x-www-form-urlencoded'])
@@ -77,9 +97,56 @@ class KirimNotifikasiAbsensi implements ShouldQueue
                 'sent_at' => now(),
             ]);
         } catch (\Throwable $e) {
+            // Tidak dilempar ulang: pengiriman ulang otomatis berisiko
+            // mengirim pesan ganda (sinyal spam ke WhatsApp). Catat gagal dan
+            // biarkan admin menindaklanjuti dari tab Log/Antrean.
             $log->update(['status' => 'gagal', 'respons' => 'Gagal koneksi: ' . $e->getMessage(), 'sent_at' => now()]);
-            throw $e;
         }
+    }
+
+    /** Sisa detik sebelum pesan ini boleh dikirim (0 = boleh sekarang). */
+    private function detikMenunggu(NotifikasiLog $log): int
+    {
+        $tunggu = 0;
+
+        if ($log->jadwal_kirim) {
+            $tunggu = $log->jadwal_kirim->getTimestamp() - now()->getTimestamp();
+        }
+
+        $terakhir = Pengaturan::nilai($this->kunciSlot($log));
+        if ($terakhir !== '') {
+            try {
+                $jeda = $this->jedaUntuk($log);
+                $tunggu = max($tunggu, Carbon::parse($terakhir)->getTimestamp() + $jeda - now()->getTimestamp());
+            } catch (\Throwable $e) {
+                // Nilai pengaturan rusak: abaikan pembatas, tetap kirim.
+            }
+        }
+
+        return max(0, (int) ceil($tunggu));
+    }
+
+    /** Kunci pengaturan penyimpan waktu kirim terakhir, dipisah per jalur. */
+    private function kunciSlot(NotifikasiLog $log): string
+    {
+        return AntreanWhatsapp::perluDitampung($log->tipe, $log->keterangan)
+            ? 'wa_terakhir_tepat'
+            : 'wa_terakhir_lain';
+    }
+
+    private function jedaUntuk(NotifikasiLog $log): int
+    {
+        return AntreanWhatsapp::perluDitampung($log->tipe, $log->keterangan)
+            ? AntreanWhatsapp::jedaDetik()
+            : AntreanWhatsapp::JEDA_LAIN;
+    }
+
+    private function tandaiSlot(NotifikasiLog $log): void
+    {
+        DB::table('tb_pengaturan')->updateOrInsert(
+            ['kunci' => $this->kunciSlot($log)],
+            ['nilai' => now()->toDateTimeString(), 'updated_at' => now(), 'created_at' => now()]
+        );
     }
 
     /** 08xx -> 628xx, +62xx -> 62xx; '' bila tidak valid. */

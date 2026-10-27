@@ -99,6 +99,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/whatsapp/ping', [WhatsappController::class, 'ping'])->name('whatsapp.ping');
         Route::post('/whatsapp/cek-cron', [WhatsappController::class, 'cek'])->name('whatsapp.cek');
         Route::delete('/whatsapp/log', [WhatsappController::class, 'hapusLog'])->name('whatsapp.log-hapus');
+        Route::delete('/whatsapp/antrean/{log}', [WhatsappController::class, 'batalkan'])->name('whatsapp.antrean-batal');
     });
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::post('/users', [UserController::class, 'store'])->name('users.store');

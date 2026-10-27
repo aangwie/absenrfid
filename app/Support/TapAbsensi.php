@@ -4,7 +4,6 @@ namespace App\Support;
 
 use App\Jobs\KirimNotifikasiAbsensi;
 use App\Models\Absensi;
-use App\Models\NotifikasiLog;
 use App\Models\Siswa;
 
 /**
@@ -162,30 +161,15 @@ class TapAbsensi
 
     /**
      * Catat notifikasi absensi ke tb_notifikasi_log lalu antrekan pengiriman
-     * WA ke ortu/wali: 10 detik setelah absensi, +10 detik per antrean lain
-     * yang belum terkirim (jeda 10 detik dari notifikasi pertama).
+     * WA ke ortu/wali. Absensi MASUK "Tepat Waktu" ditampung dan dikirim
+     * bertahap sesuai pengaturan durasi/jumlah di menu WhatsApp; status lain
+     * (Terlambat, Izin, Sakit, Pulang) dikirim segera dengan jeda pengaman.
      */
     private function antrekanNotifikasi(Siswa $siswa, string $tanggal, string $jam, string $tipe, string $status): void
     {
         try {
-            $tujuan = KirimNotifikasiAbsensi::normalisasiNomor($siswa->no_hp_ortu);
             $pesan = KirimNotifikasiAbsensi::susunPesan($siswa, $tipe, $jam, $status, $tanggal);
-            $log = NotifikasiLog::create([
-                'nisn' => $siswa->nisn,
-                'tanggal' => $tanggal,
-                'tipe' => $tipe,
-                'nomor_tujuan' => $tujuan !== '' ? $tujuan : trim((string) $siswa->no_hp_ortu),
-                'pesan' => $pesan,
-                'status' => 'antre',
-            ]);
-            if ($tujuan === '') {
-                $log->update(['status' => 'gagal', 'respons' => 'Nomor HP ortu/wali kosong atau tidak valid.', 'sent_at' => now()]);
-
-                return;
-            }
-            $menunggu = NotifikasiLog::where('status', 'antre')->where('id', '<', $log->id)->count();
-            $tundaDetik = 10 * ($menunggu + 1);
-            KirimNotifikasiAbsensi::dispatch($log->id)->delay(now()->addSeconds($tundaDetik));
+            AntreanWhatsapp::antre($siswa, $tanggal, $tipe, $status, $pesan);
         } catch (\Throwable $e) {
             report($e);
         }

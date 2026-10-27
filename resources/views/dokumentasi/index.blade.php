@@ -154,12 +154,14 @@
     <div>
       <h3 class="text-sm font-semibold text-white mb-2">Fungsi tiap tab</h3>
       <ul class="list-disc pl-5 flex flex-col gap-1.5 text-[13px]">
-        <li><span class="text-white font-medium">Konfigurasi</span> — simpan 3 parameter API:
+        <li><span class="text-white font-medium">Konfigurasi</span> — simpan parameter API:
           <span class="font-mono text-slate-200">URL</span> (endpoint gateway, misal <span class="font-mono text-slate-200">https://wa.billnesia.com/send-message</span>),
           <span class="font-mono text-slate-200">API Key</span>, dan
-          <span class="font-mono text-slate-200">Number</span> (nomor pengirim milik sekolah).</li>
+          <span class="font-mono text-slate-200">Number</span> (nomor pengirim milik sekolah), ditambah
+          <span class="text-white font-medium">Durasi</span> dan <span class="text-white font-medium">Jumlah pesan per durasi</span> untuk mengatur kecepatan kirim.</li>
+        <li><span class="text-white font-medium">Antrean</span> — daftar pesan yang sudah dijadwalkan tetapi belum terkirim (jadwal kirim, siswa, tipe, keterangan, tujuan, isi pesan). Setiap baris punya tombol <span class="text-rose-300 font-medium">Batalkan</span> selama pesannya belum terkirim.</li>
         <li><span class="text-white font-medium">Uji Kirim</span> — form Nomor Tujuan + Pesan untuk mengetes API. Hasilnya tampil sebagai kartu <span class="text-emerald-300 font-medium">BERHASIL</span>/<span class="text-rose-300 font-medium">GAGAL</span> lengkap dengan kode HTTP dan isi respons API.</li>
-        <li><span class="text-white font-medium">Log Notifikasi</span> — riwayat setiap notifikasi absensi: waktu, siswa, tipe (MASUK/PULANG), nomor tujuan, status (Antre/Terkirim/Gagal), kode HTTP, dan respons.</li>
+        <li><span class="text-white font-medium">Log Notifikasi</span> — riwayat setiap notifikasi absensi: waktu, jadwal, siswa, tipe (MASUK/PULANG), nomor tujuan, status (Antre/Terkirim/Gagal/Dibatalkan), kode HTTP, dan respons.</li>
       </ul>
     </div>
     <div>
@@ -167,8 +169,9 @@
       <ol class="list-decimal pl-5 flex flex-col gap-1.5 text-[13px]">
         <li>Siswa tap kartu (Masuk/Pulang) dan absensi berhasil direkam.</li>
         <li>Sistem membuat baris log berstatus <span class="text-amber-300 font-medium">Antre</span> berisi pesan otomatis (nama, NISN, kelas, tanggal, jam, status) untuk nomor HP ortu/wali siswa tersebut. Nomor dinormalisasi otomatis (08xx → 628xx).</li>
-        <li>Job pengiriman dijadwalkan <span class="text-white font-medium">10 detik</span> setelah absensi. Bila banyak absensi menumpuk, tiap notifikasi diberi jeda <span class="text-white font-medium">10 detik dari notifikasi sebelumnya</span> (notifikasi ke-1 = 10 dtk, ke-2 = 20 dtk, dst).</li>
-        <li>Worker mengeksekusi job: kirim POST form-urlencoded (<span class="font-mono text-slate-200">nomor_pengirim, api_key, nomor_penerima, pesan</span>) ke URL gateway, lalu update log menjadi <span class="text-emerald-300 font-medium">Terkirim</span> atau <span class="text-rose-300 font-medium">Gagal</span> beserta HTTP dan responsnya. Gagal koneksi dicoba ulang 3x.</li>
+        <li>Notifikasi <span class="text-white font-medium">MASUK berstatus Tepat Waktu</span> ditampung lebih dulu, lalu dikirim bertahap mengikuti pengaturan durasi/jumlah. Contoh: 10 menit / 10 pesan = 1 pesan tiap 60 detik; 90 pesan selesai dalam ±90 menit. Status lain (Terlambat, Izin, Sakit, Pulang, tandai manual) tetap dikirim segera dengan jeda pengaman 10 detik. Tujuannya agar nomor WhatsApp tidak diblokir karena mengirim ratusan pesan sekaligus.</li>
+        <li>Worker mengeksekusi job sesuai <span class="font-mono text-slate-200">jadwal_kirim</span>: kirim POST form-urlencoded (<span class="font-mono text-slate-200">nomor_pengirim, api_key, nomor_penerima, pesan</span>) ke URL gateway, lalu update log menjadi <span class="text-emerald-300 font-medium">Terkirim</span> atau <span class="text-rose-300 font-medium">Gagal</span> beserta HTTP dan responsnya. Pesan yang gagal tidak dikirim ulang otomatis agar tidak terjadi pesan ganda.</li>
+        <li>Admin bisa membatalkan pesan yang belum terkirim dari tab <span class="text-white font-medium">Antrean</span>; statusnya berubah menjadi <span class="text-slate-300 font-medium">Dibatalkan</span> dan tidak akan dikirim.</li>
         <li>Siswa tanpa nomor HP ortu/wali langsung dicatat <span class="text-rose-300 font-medium">Gagal</span> dengan keterangan "Nomor HP ortu/wali kosong atau tidak valid" (tidak mengantre).</li>
       </ol>
     </div>

@@ -184,4 +184,111 @@ class NotifikasiAbsensiTest extends TestCase
         $this->assertStringContainsString('Anak Antre', $log->pesan);
         \Illuminate\Support\Facades\Queue::assertPushed(KirimNotifikasiAbsensi::class);
     }
+
+    public function test_pengaturan_durasi_dan_jumlah_pesan_disimpan(): void
+    {
+        $admin = \App\Models\User::factory()->create();
+
+        $this->actingAs($admin)->post(route('whatsapp.simpan'), [
+            'wa_url' => 'https://wa.contoh.com/send-message',
+            'wa_api_key' => 'KUNCI',
+            'wa_number' => '6281111111111',
+            'wa_batch_menit' => 10,
+            'wa_batch_jumlah' => 10,
+        ])->assertRedirect(route('whatsapp.index', ['tab' => 'konfigurasi']));
+
+        $this->assertSame('10', \App\Models\Pengaturan::nilai('wa_batch_menit'));
+        $this->assertSame('10', \App\Models\Pengaturan::nilai('wa_batch_jumlah'));
+        $this->assertSame(60, \App\Support\AntreanWhatsapp::jedaDetik());
+
+        $this->actingAs($admin)->post(route('whatsapp.simpan'), [
+            'wa_url' => 'https://wa.contoh.com/send-message',
+            'wa_api_key' => 'KUNCI',
+            'wa_number' => '6281111111111',
+            'wa_batch_menit' => 0,
+            'wa_batch_jumlah' => 0,
+        ])->assertSessionHasErrors(['wa_batch_menit', 'wa_batch_jumlah']);
+    }
+
+    public function test_masuk_tepat_waktu_dijadwalkan_bertahap_lainnya_segera(): void
+    {
+        \Illuminate\Support\Facades\Queue::fake();
+        $this->setPengaturanWa(['wa_batch_menit' => '10', 'wa_batch_jumlah' => '10']);
+
+        $siswa = $this->siswaUji('TAGJADWAL', '0099001100');
+        $tanggal = now()->toDateString();
+        $awal = now();
+
+        $satu = \App\Support\AntreanWhatsapp::antre($siswa, $tanggal, 'masuk', 'Tepat Waktu', 'pesan 1');
+        $dua = \App\Support\AntreanWhatsapp::antre($siswa, $tanggal, 'masuk', 'Tepat Waktu', 'pesan 2');
+        $tiga = \App\Support\AntreanWhatsapp::antre($siswa, $tanggal, 'masuk', 'Tepat Waktu', 'pesan 3');
+
+        $this->assertTrue($satu->jadwal_kirim->greaterThanOrEqualTo($awal->copy()->subSecond()));
+        $this->assertSame(60, (int) round($satu->jadwal_kirim->diffInSeconds($dua->jadwal_kirim)));
+        $this->assertSame(60, (int) round($dua->jadwal_kirim->diffInSeconds($tiga->jadwal_kirim)));
+
+        // Terlambat tidak ditampung: tidak ikut antrean 60 detik.
+        $terlambat = \App\Support\AntreanWhatsapp::antre($siswa, $tanggal, 'masuk', 'Terlambat', 'pesan 4');
+        $this->assertTrue($terlambat->jadwal_kirim->lessThan($dua->jadwal_kirim));
+
+        \Illuminate\Support\Facades\Queue::assertPushed(KirimNotifikasiAbsensi::class, 4);
+    }
+
+    public function test_pesan_antrean_bisa_dibatalkan_dan_tidak_terkirim(): void
+    {
+        $admin = \App\Models\User::factory()->create();
+        $log = NotifikasiLog::create([
+            'nisn' => '0099002200', 'tanggal' => now()->toDateString(), 'tipe' => 'masuk',
+            'keterangan' => 'Tepat Waktu', 'nomor_tujuan' => '6281234567890',
+            'pesan' => 'tes batal', 'status' => 'antre', 'jadwal_kirim' => now()->addMinutes(5),
+        ]);
+
+        $this->actingAs($admin)->get(route('whatsapp.index', ['tab' => 'antrean']))
+            ->assertOk()->assertSee('Batalkan');
+
+        $this->actingAs($admin)->delete(route('whatsapp.antrean-batal', $log))
+            ->assertRedirect(route('whatsapp.index', ['tab' => 'antrean']));
+
+        $log->refresh();
+        $this->assertSame('batal', $log->status);
+        $this->assertNotNull($log->dibatalkan_at);
+
+        Http::fake();
+        (new KirimNotifikasiAbsensi($log->id))->handle();
+        Http::assertNothingSent();
+    }
+
+    public function test_pesan_sudah_terkirim_tidak_bisa_dibatalkan(): void
+    {
+        $admin = \App\Models\User::factory()->create();
+        $log = NotifikasiLog::create([
+            'nisn' => '0099003300', 'tanggal' => now()->toDateString(), 'tipe' => 'pulang',
+            'keterangan' => 'Selesai', 'nomor_tujuan' => '6281234567890',
+            'pesan' => 'tes', 'status' => 'terkirim', 'sent_at' => now(),
+        ]);
+
+        $this->actingAs($admin)->delete(route('whatsapp.antrean-batal', $log))
+            ->assertSessionHasErrors('msg');
+        $this->assertSame('terkirim', $log->fresh()->status);
+    }
+
+    private function setPengaturanWa(array $nilai): void
+    {
+        $baris = collect($nilai)->map(fn ($v, $k) => [
+            'kunci' => $k, 'nilai' => (string) $v, 'created_at' => now(), 'updated_at' => now(),
+        ])->values()->all();
+
+        \App\Models\Pengaturan::query()->upsert($baris, ['kunci'], ['nilai', 'updated_at']);
+        \App\Models\Pengaturan::lupakan();
+    }
+
+    private function siswaUji(string $tag, string $nisn): Siswa
+    {
+        $kelas = Kelas::create(['nama' => 'XII RPL ' . substr($nisn, -2)]);
+
+        return Siswa::create([
+            'nisn' => $nisn, 'rfid_tag' => $tag, 'nama' => 'Siswa ' . $tag,
+            'kelas_id' => $kelas->id, 'gender' => 'L', 'no_hp_ortu' => '081234567890',
+        ]);
+    }
 }
