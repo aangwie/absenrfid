@@ -149,7 +149,7 @@
   @elseif ($tab === 'whatsapp')
     <div>
       <h2 class="text-base font-semibold text-white mb-1">Menu Whatsapp</h2>
-      <p class="text-[11px] text-slate-500">Konfigurasi gateway, uji kirim, dan pantau notifikasi absensi ke orang tua/wali.</p>
+      <p class="text-[11px] text-slate-500">Konfigurasi gateway, template pesan, uji kirim, dan pantau notifikasi absensi ke orang tua/wali.</p>
     </div>
     <div>
       <h3 class="text-sm font-semibold text-white mb-2">Fungsi tiap tab</h3>
@@ -159,7 +159,8 @@
           <span class="font-mono text-slate-200">API Key</span>, dan
           <span class="font-mono text-slate-200">Number</span> (nomor pengirim milik sekolah). Ada juga centang <span class="text-white font-medium">status pesan yang dikirim</span> (Tepat Waktu, Terlambat, Pulang) serta <span class="text-white font-medium">Durasi</span> dan <span class="text-white font-medium">Jumlah pesan per durasi</span> untuk mengatur kecepatan kirim.</li>
         <li><span class="text-white font-medium">Antrean</span> — daftar pesan yang sudah dijadwalkan tetapi belum terkirim (jadwal kirim, siswa, tipe, keterangan, tujuan, isi pesan). Setiap baris punya tombol <span class="text-rose-300 font-medium">Batalkan</span> selama pesannya belum terkirim.</li>
-        <li><span class="text-white font-medium">Uji Kirim</span> — form Nomor Tujuan + Pesan untuk mengetes API. Hasilnya tampil sebagai kartu <span class="text-emerald-300 font-medium">BERHASIL</span>/<span class="text-rose-300 font-medium">GAGAL</span> lengkap dengan kode HTTP dan isi respons API.</li>
+        <li><span class="text-white font-medium">Uji Kirim</span> — pilih tujuan lewat tombol <span class="text-white font-medium">Nomor Tertentu</span> (ketik satu nomor) atau <span class="text-white font-medium">Nomor Siswa Terdaftar</span> (multi select yang bisa dicari berdasarkan nama, NISN, atau nomor HP). Pesan bisa diisi dari template. Placeholder seperti <span class="font-mono text-slate-200">{nama}</span>, <span class="font-mono text-slate-200">{nisn}</span>, <span class="font-mono text-slate-200">{kelas}</span> otomatis diganti saat mengirim ke siswa terdaftar. Hasil tiap tujuan tampil lengkap dengan kode HTTP dan isi respons API.</li>
+        <li><span class="text-white font-medium">Template</span> — kumpulan template pesan WhatsApp ke siswa/orang tua. Template aktif per kategori (Tepat Waktu, Terlambat, Pulang, Tandai Manual, Umum) dipakai otomatis saat menyusun notifikasi. Template bisa ditambah, diedit, dihapus, dan diaktifkan/nonaktifkan. Bila tidak ada template aktif, sistem memakai teks bawaan.</li>
         <li><span class="text-white font-medium">Log Notifikasi</span> — riwayat setiap notifikasi absensi: waktu, jadwal, siswa, tipe (MASUK/PULANG), nomor tujuan, status (Antre/Terkirim/Gagal/Dibatalkan), kode HTTP, dan respons.</li>
       </ul>
     </div>
@@ -167,7 +168,7 @@
       <h3 class="text-sm font-semibold text-white mb-2">Cara kerja notifikasi absensi</h3>
       <ol class="list-decimal pl-5 flex flex-col gap-1.5 text-[13px]">
         <li>Siswa tap kartu (Masuk/Pulang) dan absensi berhasil direkam.</li>
-        <li>Sistem membuat baris log berstatus <span class="text-amber-300 font-medium">Antre</span> berisi pesan otomatis (nama, NISN, kelas, tanggal, jam, status) untuk nomor HP ortu/wali siswa tersebut. Nomor dinormalisasi otomatis (08xx → 628xx).</li>
+        <li>Sistem membuat baris log berstatus <span class="text-amber-300 font-medium">Antre</span> berisi pesan otomatis dari <span class="text-white font-medium">template aktif</span> (nama, NISN, kelas, tanggal, jam, status) untuk nomor HP ortu/wali siswa tersebut. Nomor dinormalisasi otomatis (08xx → 628xx).</li>
         <li>Hanya notifikasi dengan status yang <span class="text-white font-medium">dicentang di tab Konfigurasi</span> (Tepat Waktu, Terlambat, Pulang) yang dibuatkan antrean; status yang tidak dicentang tidak dikirim. Notifikasi dari aksi Tandai manual (Izin, Sakit, Tanpa Keterangan) selalu dikirim karena merupakan tindakan admin.</li>
         <li>Semua pesan terpilih dikirim bertahap mengikuti pengaturan durasi/jumlah. Contoh: 10 menit / 10 pesan = 1 pesan tiap 60 detik; 90 pesan selesai dalam ±90 menit. Saat status dinonaktifkan, antrean lamanya otomatis dibatalkan. Tujuannya agar nomor WhatsApp tidak diblokir karena mengirim ratusan pesan sekaligus.</li>
         <li>Worker mengeksekusi job sesuai <span class="font-mono text-slate-200">jadwal_kirim</span>: kirim POST form-urlencoded (<span class="font-mono text-slate-200">nomor_pengirim, api_key, nomor_penerima, pesan</span>) ke URL gateway, lalu update log menjadi <span class="text-emerald-300 font-medium">Terkirim</span> atau <span class="text-rose-300 font-medium">Gagal</span> beserta HTTP dan responsnya. Pesan yang gagal tidak dikirim ulang otomatis agar tidak terjadi pesan ganda.</li>

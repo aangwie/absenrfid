@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\NotifikasiLog;
 use App\Models\Pengaturan;
 use App\Models\Siswa;
+use App\Models\WhatsappTemplate;
 use App\Support\AntreanWhatsapp;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -99,7 +100,7 @@ class KirimNotifikasiAbsensi implements ShouldQueue
 
             $respons = (string) $res->body();
             if (strlen($respons) > 2000) {
-                $respons = substr($respons, 0, 2000) . '... (dipotong)';
+                $respons = substr($respons, 0, 2000).'... (dipotong)';
             }
             $log->update([
                 'nomor_tujuan' => $tujuan,
@@ -112,7 +113,7 @@ class KirimNotifikasiAbsensi implements ShouldQueue
             // Tidak dilempar ulang: pengiriman ulang otomatis berisiko
             // mengirim pesan ganda (sinyal spam ke WhatsApp). Catat gagal dan
             // biarkan admin menindaklanjuti dari tab Log/Antrean.
-            $log->update(['status' => 'gagal', 'respons' => 'Gagal koneksi: ' . $e->getMessage(), 'sent_at' => now()]);
+            $log->update(['status' => 'gagal', 'respons' => 'Gagal koneksi: '.$e->getMessage(), 'sent_at' => now()]);
         }
     }
 
@@ -154,9 +155,9 @@ class KirimNotifikasiAbsensi implements ShouldQueue
         }
         $digit = preg_replace('/[^0-9]/', '', $no) ?? '';
         if (str_starts_with($digit, '08')) {
-            $digit = '62' . substr($digit, 1);
+            $digit = '62'.substr($digit, 1);
         } elseif (str_starts_with($digit, '8')) {
-            $digit = '62' . $digit;
+            $digit = '62'.$digit;
         }
         if (! preg_match('/^62[0-9]{8,13}$/', $digit)) {
             return '';
@@ -167,23 +168,30 @@ class KirimNotifikasiAbsensi implements ShouldQueue
 
     public static function susunPesan(Siswa $siswa, string $tipe, string $jam, string $status, string $tanggal): string
     {
-        $institusi = trim(Pengaturan::nilai('nama_institusi'));
-        $kepala = $institusi !== '' ? "[Absensi {$institusi}]" : '[Absensi RFID]';
-        $kelas = $siswa->kelas->nama ?? '-';
-        $aksi = $tipe === 'pulang' ? 'telah PULANG' : 'telah MASUK';
-        $waktu = substr($jam, 0, 5);
+        $kategori = AntreanWhatsapp::kategori($tipe, $status);
+        if ($kategori === 'lain') {
+            $kategori = $tipe === 'pulang' ? 'pulang' : 'tepat_waktu';
+        }
+        $template = WhatsappTemplate::untukKategori($kategori);
 
-        return "{$kepala} {$siswa->nama} ({$siswa->nisn}, {$kelas}) {$aksi} pada {$tanggal} pukul {$waktu} ({$status}).";
+        return $template->render($siswa, [
+            'tanggal' => $tanggal,
+            'jam' => $jam !== '' ? substr($jam, 0, 5) : '',
+            'status' => $status,
+            'tipe' => $tipe === 'pulang' ? 'PULANG' : 'MASUK',
+        ]);
     }
 
     /** Pesan untuk penandaan manual dari /laporan (Belum Absen). */
     public static function susunPesanTandai(Siswa $siswa, string $status, string $jam, string $tanggal): string
     {
-        $institusi = trim(Pengaturan::nilai('nama_institusi'));
-        $kepala = $institusi !== '' ? "[Absensi {$institusi}]" : '[Absensi RFID]';
-        $kelas = $siswa->kelas->nama ?? '-';
-        $waktu = $jam !== '' ? ' pukul ' . substr($jam, 0, 5) : '';
+        $template = WhatsappTemplate::untukKategori('tandai');
 
-        return "{$kepala} {$siswa->nama} ({$siswa->nisn}, {$kelas}) ditandai {$status} pada {$tanggal}{$waktu}.";
+        return $template->render($siswa, [
+            'tanggal' => $tanggal,
+            'jam' => $jam !== '' ? substr($jam, 0, 5) : '',
+            'status' => $status,
+            'tipe' => 'TANDAI',
+        ]);
     }
 }

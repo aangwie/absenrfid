@@ -69,6 +69,15 @@ Seed buat:
 - 5 kelas: `XII RPL 1`, `XII RPL 2`, `XI TKJ 2`, `X AKL 3`, `X IPA 1`.
 - 6 siswa contoh (NISN `0082234749` = RFID `2234749610` dst).
 
+## Tes
+
+Tes memakai database terpisah `absenrfid_testing` (lihat `phpunit.xml`) agar database utama `absenrfid` tidak ikut terhapus oleh `RefreshDatabase`.
+
+```powershell
+mysql -u root -e "CREATE DATABASE IF NOT EXISTS absenrfid_testing;"
+php artisan test
+```
+
 ## Cara Akses
 
 Base `http://localhost:8000`.
