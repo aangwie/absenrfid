@@ -33,6 +33,17 @@ class NotifikasiLog extends Model
         return $query->where('status', 'antre');
     }
 
+    /**
+     * Sesi WhatsApp pengirim yang dipakai: nama kelasnya bila kelas itu sudah
+     * punya nomor sendiri (hasil scan QR), selain itu sesi Pusat.
+     */
+    public function labelSesi(): string
+    {
+        $kelas = $this->siswa?->kelas;
+
+        return trim((string) ($kelas?->wa_number ?? '')) !== '' ? (string) $kelas->nama : 'Pusat';
+    }
+
     public function dibatalkan(): bool
     {
         return $this->status === 'batal';

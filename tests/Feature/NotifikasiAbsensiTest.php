@@ -404,6 +404,46 @@ class NotifikasiAbsensiTest extends TestCase
             && $req['nomor_penerima'] === '6281298765432');
     }
 
+    public function test_siswa_kelas_7a_dikirim_lewat_sesi_kelas_dan_terlihat_di_antrean(): void
+    {
+        \Illuminate\Support\Facades\Queue::fake();
+        $admin = \App\Models\User::factory()->create();
+        $this->setPengaturanWa([
+            'wa_url' => 'https://wa.contoh.com/send-message',
+            'wa_api_key' => 'PUSAT',
+            'wa_number' => '6281111111111',
+        ]);
+
+        // Sesi kelas 7A didapat dari scan QR (nomor + API key otomatis).
+        $kelas = Kelas::create(['nama' => '7A']);
+        \App\Support\AntreanWhatsapp::simpanNomor($kelas->id, '6283333333333');
+
+        $siswa = Siswa::create([
+            'nisn' => '0099008801', 'rfid_tag' => 'TAG7A', 'nama' => 'Siswa 7A',
+            'kelas_id' => $kelas->id, 'gender' => 'L', 'no_hp_ortu' => '0812345678',
+        ]);
+
+        Http::fake(['*' => Http::response(['success' => true], 200)]);
+
+        $log = \App\Support\AntreanWhatsapp::antre($siswa, now()->toDateString(), 'masuk', 'Tepat Waktu', 'Notifikasi kelas 7A');
+        (new KirimNotifikasiAbsensi($log->id))->handle();
+
+        // Nomor ortu siswa (0812345678) dikirim lewat sesi WhatsApp kelas 7A,
+        // bukan lewat sesi pusat.
+        Http::assertSent(fn ($req) => $req['device_id'] === 'kelas-'.$kelas->id
+            && $req['nomor_pengirim'] === '6283333333333'
+            && $req['nomor_penerima'] === '62812345678');
+        $this->assertSame('terkirim', $log->fresh()->status);
+
+        // Tab Antrean menampilkan status kirim + sesi pengirimnya.
+        $this->actingAs($admin)->get(route('whatsapp.index', ['tab' => 'antrean', 'status' => 'terkirim']))
+            ->assertOk()
+            ->assertSee('Sesi Pengirim')
+            ->assertSee('7A')
+            ->assertSee('Terkirim')
+            ->assertSee('62812345678');
+    }
+
     public function test_antrean_tiap_kelas_berjalan_sendiri(): void
     {
         \Illuminate\Support\Facades\Queue::fake();

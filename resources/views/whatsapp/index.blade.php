@@ -280,9 +280,16 @@
   @elseif ($tab === 'antrean')
   <div>
     <div class="flex flex-col sm:flex-row sm:items-center gap-2 mb-1">
-      <h2 class="text-base font-semibold text-white flex-1">Antrean Pesan WhatsApp</h2>
+      <h2 class="text-base font-semibold text-white flex-1">Antrean &amp; Status Pengiriman</h2>
     </div>
-    <p class="text-[11px] text-slate-500 mb-4">Pesan dari status yang dicentang di tab Konfigurasi, sudah dijadwalkan tetapi belum terkirim. Semua memakai kecepatan yang sama. Pesan yang belum terkirim bisa dibatalkan di sini.</p>
+    <p class="text-[11px] text-slate-500 mb-4">Pesan dari status yang dicentang di tab Konfigurasi. Tiap baris dikirim lewat sesi WhatsApp kelas siswanya (kolom <span class="text-slate-300">Sesi Pengirim</span>); status berubah dari <span class="text-amber-300">Menunggu</span> menjadi <span class="text-emerald-300">Terkirim</span> atau <span class="text-rose-300">Gagal</span> setelah diproses worker. Pesan yang masih menunggu bisa dibatalkan di sini.</p>
+
+    @php($chip = ['antre' => 'Menunggu', 'terkirim' => 'Terkirim', 'gagal' => 'Gagal', 'batal' => 'Dibatalkan', 'semua' => 'Semua'])
+    <div class="flex flex-wrap gap-2 mb-4 text-[11px] font-semibold">
+      @foreach ($chip as $kunci => $label)
+      <a href="{{ route('whatsapp.index', ['tab' => 'antrean', 'status' => $kunci]) }}" class="px-3 py-1.5 rounded-lg border transition-colors {{ $filter === $kunci ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-900/60 border-slate-700 text-slate-400 hover:text-white' }}">{{ $label }} <span class="font-mono {{ $filter === $kunci ? 'text-indigo-100' : 'text-slate-500' }}">{{ $hitungStatus[$kunci] ?? 0 }}</span></a>
+      @endforeach
+    </div>
 
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4 text-xs">
       <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-3"><p class="text-slate-500">Jumlah antre</p><p class="font-mono font-bold text-amber-300 text-base">{{ $jumlahAntre }}</p></div>
@@ -293,27 +300,54 @@
 
     @if (($antrean->total() ?? 0) > 0)
     <div class="overflow-x-auto rounded-xl border border-slate-700/80"><table class="w-full text-left text-xs border-collapse">
-      <thead><tr class="bg-slate-900/90 text-slate-300 border-b border-slate-700 font-semibold"><th class="py-3.5 px-4">Jadwal Kirim</th><th class="py-3.5 px-4">Siswa</th><th class="py-3.5 px-4 text-center">Tipe</th><th class="py-3.5 px-4 text-center">Keterangan</th><th class="py-3.5 px-4">Tujuan</th><th class="py-3.5 px-4">Pesan</th><th class="py-3.5 px-4 text-center">Aksi</th></tr></thead>
+      <thead><tr class="bg-slate-900/90 text-slate-300 border-b border-slate-700 font-semibold"><th class="py-3.5 px-4">Status</th><th class="py-3.5 px-4">Jadwal Kirim</th><th class="py-3.5 px-4">Siswa</th><th class="py-3.5 px-4">Sesi Pengirim</th><th class="py-3.5 px-4 text-center">Tipe</th><th class="py-3.5 px-4 text-center">Keterangan</th><th class="py-3.5 px-4">Tujuan</th><th class="py-3.5 px-4">Pesan</th><th class="py-3.5 px-4 text-center">Aksi</th></tr></thead>
       <tbody class="divide-y divide-slate-700/60 text-slate-300">
         @foreach ($antrean as $l)
         <tr class="hover:bg-slate-700/30 transition-colors">
-          <td class="py-3 px-4 whitespace-nowrap">
-            <div class="font-mono text-slate-200">{{ $l->jadwal_kirim ? $l->jadwal_kirim->format('d/m/Y H:i:s') : '-' }}</div>
-            @if ($l->jadwal_kirim && $l->jadwal_kirim->isPast())
-            <span class="text-[10px] font-semibold text-amber-300">menunggu worker</span>
+          <td class="py-3 px-4 whitespace-nowrap align-top">
+            @if ($l->status === 'terkirim')
+            <span class="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-1 rounded-full text-[11px] font-semibold">Terkirim</span>
+            @elseif ($l->status === 'gagal')
+            <span class="bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2.5 py-1 rounded-full text-[11px] font-semibold">Gagal</span>
+            @elseif ($l->status === 'batal')
+            <span class="bg-slate-600/40 text-slate-300 border border-slate-500/50 px-2.5 py-1 rounded-full text-[11px] font-semibold">Dibatalkan</span>
             @else
-            <span class="text-[10px] text-slate-500">terjadwal</span>
+            <span class="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2.5 py-1 rounded-full text-[11px] font-semibold">Menunggu</span>
+            @endif
+            @if ($l->sent_at)
+            <div class="text-[10px] text-slate-500 font-mono mt-1">{{ $l->sent_at->format('d/m H:i:s') }}@if ($l->http_code) • HTTP {{ $l->http_code }}@endif</div>
+            @endif
+            @if ($l->respons && $l->status !== 'antre')
+            <div class="text-[10px] text-slate-500 max-w-[220px] truncate" title="{{ $l->respons }}">{{ \Illuminate\Support\Str::limit($l->respons, 60) }}</div>
+            @endif
+          </td>
+          <td class="py-3 px-4 whitespace-nowrap align-top">
+            <div class="font-mono text-slate-200">{{ $l->jadwal_kirim ? $l->jadwal_kirim->format('d/m/Y H:i:s') : '-' }}</div>
+            @if ($l->status === 'antre')
+              @if ($l->jadwal_kirim && $l->jadwal_kirim->isPast())
+              <span class="text-[10px] font-semibold text-amber-300">menunggu worker</span>
+              @else
+              <span class="text-[10px] text-slate-500">terjadwal</span>
+              @endif
             @endif
           </td>
           <td class="py-3 px-4"><div class="font-semibold text-white text-sm">{{ $l->siswa->nama ?? $l->nisn }}</div><div class="text-[11px] text-slate-400 font-mono">{{ $l->nisn }} • {{ $l->tanggal }}</div></td>
+          <td class="py-3 px-4 whitespace-nowrap">
+            <div class="text-slate-200">{{ $l->labelSesi() }}</div>
+            <div class="text-[10px] text-slate-500 font-mono">{{ trim((string) ($l->siswa?->kelas?->wa_number ?? '')) ?: 'nomor pusat' }}</div>
+          </td>
           <td class="py-3 px-4 text-center">@if ($l->tipe === 'pulang')<span class="bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 px-2.5 py-1 rounded-full text-[11px] font-semibold">PULANG</span>@else<span class="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-1 rounded-full text-[11px] font-semibold">MASUK</span>@endif</td>
           <td class="py-3 px-4 text-center text-slate-200">{{ $l->keterangan ?? '-' }}</td>
           <td class="py-3 px-4 font-mono text-slate-200">{{ $l->nomor_tujuan ?? '-' }}</td>
           <td class="py-3 px-4 text-[11px] text-slate-400 max-w-xs"><span title="{{ $l->pesan }}">{{ \Illuminate\Support\Str::limit($l->pesan ?? '-', 90) }}</span></td>
           <td class="py-3 px-4 text-center">
+            @if ($l->status === 'antre')
             <form method="POST" action="{{ route('whatsapp.antrean-batal', $l) }}" class="js-batal-form" data-nama="{{ $l->siswa->nama ?? $l->nisn }}">@csrf @method('DELETE')
               <button type="submit" class="bg-rose-600/20 border border-rose-500/40 text-rose-300 hover:bg-rose-600 hover:text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all">Batalkan</button>
             </form>
+            @else
+            <span class="text-slate-600">-</span>
+            @endif
           </td>
         </tr>
         @endforeach
@@ -321,7 +355,7 @@
     </table></div>
     <div class="mt-4 text-slate-300 text-sm">{{ $antrean->links() }}</div>
     @else
-    <div class="rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-8 text-center text-slate-500 text-sm">Tidak ada pesan yang menunggu. Semua notifikasi sudah diproses.</div>
+    <div class="rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-8 text-center text-slate-500 text-sm">Tidak ada pesan dengan status ini.</div>
     @endif
   </div>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>

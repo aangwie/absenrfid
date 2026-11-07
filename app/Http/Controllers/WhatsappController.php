@@ -42,9 +42,26 @@ class WhatsappController extends Controller
         $logs = $tab === 'log'
             ? NotifikasiLog::with('siswa')->orderByDesc('id')->paginate(10)->withQueryString()
             : null;
+        // Tab Antrean memantau semua tahap: menunggu, terkirim, gagal, batal.
+        $filter = (string) $request->get('status', 'antre');
+        if (! in_array($filter, ['antre', 'terkirim', 'gagal', 'batal', 'semua'], true)) {
+            $filter = 'antre';
+        }
         $antrean = $tab === 'antrean'
-            ? NotifikasiLog::with('siswa')->antre()->orderBy('jadwal_kirim')->orderBy('id')->paginate(20)->withQueryString()
+            ? NotifikasiLog::with('siswa.kelas')
+                ->when($filter !== 'semua', fn ($q) => $q->where('status', $filter))
+                ->when(
+                    $filter === 'antre',
+                    fn ($q) => $q->orderBy('jadwal_kirim')->orderBy('id'),
+                    fn ($q) => $q->orderByDesc('id')
+                )
+                ->paginate(20)->withQueryString()
             : null;
+        $hitungStatus = $tab === 'antrean'
+            ? NotifikasiLog::query()->toBase()->selectRaw('status, count(*) as jumlah')
+                ->groupBy('status')->pluck('jumlah', 'status')
+            : collect();
+        $hitungStatus['semua'] = collect($hitungStatus)->sum();
         $cron = $tab === 'cron' ? $this->statusCron($request) : null;
         $jadwal = $tab === 'antrean' ? [
             'jeda' => AntreanWhatsapp::jedaDetik(),
@@ -66,7 +83,7 @@ class WhatsappController extends Controller
                 ->get(['nisn', 'nama', 'kelas_id', 'no_hp_ortu'])
             : collect();
 
-        return view('whatsapp.index', compact('tab', 'cfg', 'logs', 'cron', 'antrean', 'jadwal', 'jumlahAntre', 'templates', 'siswaWa', 'daftarKelas'));
+        return view('whatsapp.index', compact('tab', 'cfg', 'logs', 'cron', 'antrean', 'jadwal', 'jumlahAntre', 'templates', 'siswaWa', 'daftarKelas', 'filter', 'hitungStatus'));
     }
 
     public function simpan(Request $request)
