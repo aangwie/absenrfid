@@ -3,11 +3,14 @@
 namespace App\Support;
 
 use App\Jobs\KirimNotifikasiAbsensi;
+use App\Models\Kelas;
 use App\Models\NotifikasiLog;
 use App\Models\Pengaturan;
 use App\Models\Siswa;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Penjadwal antrean notifikasi WhatsApp.
@@ -36,6 +39,105 @@ class AntreanWhatsapp
         'terlambat' => 'Terlambat',
         'pulang' => 'Pulang',
     ];
+
+    /** Kolom sesi WhatsApp yang bisa diisi per kelas. */
+    public const KOLOM_SESI = ['wa_url', 'wa_api_key', 'wa_number'];
+
+    /** Device sesi pusat di gateway (dipakai bila kelas belum punya nomor). */
+    public const DEVICE_PUSAT = 'pusat';
+
+    /** Id device gateway untuk sesi milik satu kelas. */
+    public static function deviceKelas(int $kelasId): string
+    {
+        return 'kelas-'.$kelasId;
+    }
+
+    /**
+     * Sesi WhatsApp milik satu kelas: kolom di tb_kelas yang terisi dipakai,
+     * yang kosong jatuh ke konfigurasi pusat (tab Konfigurasi). $kelasId null
+     * berarti murni konfigurasi pusat.
+     */
+    public static function sesi(?int $kelasId): array
+    {
+        $kelas = $kelasId ? Kelas::find($kelasId) : null;
+        $pusat = Pengaturan::ambil();
+
+        $sesi = [];
+        foreach (self::KOLOM_SESI as $kolom) {
+            $sesi[$kolom] = trim((string) ($kelas?->{$kolom} ?? '')) ?: trim((string) ($pusat[$kolom] ?? ''));
+        }
+
+        // Device milik kelas hanya dipakai bila nomornya sudah terisi (hasil
+        // scan). Tanpa nomor, pengiriman lewat device pusat supaya tidak
+        // menunjuk sesi yang belum pernah dipindai.
+        $sesi['device'] = trim((string) ($kelas?->wa_number ?? '')) !== ''
+            ? self::deviceKelas((int) $kelasId)
+            : self::DEVICE_PUSAT;
+
+        return $sesi;
+    }
+
+    /**
+     * Satu-satunya penulis nomor pengirim sesi: hasil scan (phone_number dari
+     * gateway) atau null saat sesi diputuskan. Nomor disimpan dalam format
+     * gateway (digit, sudah berkode negara).
+     */
+    public static function simpanNomor(?int $kelasId, ?string $nomor): void
+    {
+        $nomor = preg_replace('~\D~', '', (string) $nomor) ?: null;
+
+        // Scan berhasil: kunci sesi sekalian dibuat bila belum ada, jadi admin
+        // tidak perlu mengetik API Key.
+        if ($nomor) {
+            self::pastikanApiKey($kelasId);
+        }
+
+        if ($kelasId) {
+            $kelas = Kelas::find($kelasId);
+            if ($kelas && $kelas->wa_number !== $nomor) {
+                $kelas->update(['wa_number' => $nomor]);
+            }
+
+            return;
+        }
+
+        if (Pengaturan::nilai('wa_number') === (string) $nomor) {
+            return;
+        }
+        DB::table('tb_pengaturan')->updateOrInsert(
+            ['kunci' => 'wa_number'],
+            ['nilai' => (string) $nomor, 'updated_at' => now(), 'created_at' => now()]
+        );
+        Pengaturan::lupakan();
+    }
+
+    /**
+     * API Key sesi: dipakai apa adanya bila sudah ada, kalau kosong digenerate
+     * sekali lalu disimpan. Gateway BillNesia tidak memvalidasi field ini, jadi
+     * kunci acak aman; nilainya hanya perlu stabil agar tidak berubah-ubah.
+     */
+    public static function pastikanApiKey(?int $kelasId): string
+    {
+        $kelas = $kelasId ? Kelas::find($kelasId) : null;
+        $lama = trim((string) ($kelasId ? ($kelas?->wa_api_key ?? '') : Pengaturan::nilai('wa_api_key')));
+        if ($lama !== '') {
+            return $lama;
+        }
+
+        $kunci = 'wa_'.Str::random(40);
+
+        if ($kelasId) {
+            $kelas?->update(['wa_api_key' => $kunci]);
+        } else {
+            DB::table('tb_pengaturan')->updateOrInsert(
+                ['kunci' => 'wa_api_key'],
+                ['nilai' => $kunci, 'updated_at' => now(), 'created_at' => now()]
+            );
+            Pengaturan::lupakan();
+        }
+
+        return $kunci;
+    }
 
     public static function durasiMenit(): int
     {
@@ -120,13 +222,15 @@ class AntreanWhatsapp
 
     /**
      * Tentukan waktu kirim untuk pesan baru: melanjutkan jadwal antrean
-     * terakhir, atau sekarang bila antrean sedang kosong.
+     * terakhir kelas yang sama, atau sekarang bila antrean kelas itu kosong.
+     * Tiap kelas punya nomor sendiri, jadi jeda antreannya juga dipisah.
      */
-    public static function jadwalkan(): Carbon
+    public static function jadwalkan(?int $kelasId = null): Carbon
     {
         $terakhir = NotifikasiLog::query()
             ->antre()
             ->whereNotNull('jadwal_kirim')
+            ->when($kelasId, fn ($q) => $q->whereHas('siswa', fn ($s) => $s->where('kelas_id', $kelasId)))
             ->max('jadwal_kirim');
 
         $sekarang = now();
@@ -137,6 +241,16 @@ class AntreanWhatsapp
         $berikut = Carbon::parse($terakhir)->addSeconds(self::jedaDetik());
 
         return $berikut->greaterThan($sekarang) ? $berikut : $sekarang;
+    }
+
+    /**
+     * Kunci pengaturan penanda kapan nomor pengirim ini terakhir dipakai.
+     * Jeda antar pesan dijaga per nomor, supaya kelas A tidak ikut menunggu
+     * nomor kelas B.
+     */
+    public static function kunciTerakhirKirim(string $nomorPengirim): string
+    {
+        return 'wa_terakhir_kirim_'.substr(sha1($nomorPengirim), 0, 12);
     }
 
     /**
@@ -159,7 +273,7 @@ class AntreanWhatsapp
         }
 
         $tujuan = KirimNotifikasiAbsensi::normalisasiNomor($siswa->no_hp_ortu);
-        $jadwal = $langsung ? now() : self::jadwalkan();
+        $jadwal = $langsung ? now() : self::jadwalkan($siswa->kelas_id);
 
         $log = NotifikasiLog::create([
             'nisn' => $siswa->nisn,

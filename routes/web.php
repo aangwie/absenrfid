@@ -95,6 +95,9 @@ Route::middleware('auth')->group(function () {
         Route::delete('/pengaturan/perangkat-log', [PengaturanController::class, 'hapusLogPerangkat'])->name('pengaturan.perangkat.log-hapus');
         Route::get('/whatsapp', [WhatsappController::class, 'index'])->name('whatsapp.index');
         Route::post('/whatsapp/simpan', [WhatsappController::class, 'simpan'])->name('whatsapp.simpan');
+        Route::get('/whatsapp/qr', [WhatsappController::class, 'qr'])->name('whatsapp.qr');
+        Route::get('/whatsapp/status', [WhatsappController::class, 'status'])->name('whatsapp.status');
+        Route::post('/whatsapp/putuskan', [WhatsappController::class, 'putuskan'])->name('whatsapp.putuskan');
         Route::post('/whatsapp/uji', [WhatsappController::class, 'uji'])->name('whatsapp.uji');
         Route::post('/whatsapp/template', [WhatsappController::class, 'simpanTemplate'])->name('whatsapp.template.simpan');
         Route::put('/whatsapp/template/{template}', [WhatsappController::class, 'perbaruiTemplate'])->name('whatsapp.template.update');

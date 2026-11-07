@@ -76,6 +76,35 @@ class NotifikasiAbsensiTest extends TestCase
         $this->assertSame(400, (int) $log2->fresh()->http_code);
     }
 
+    public function test_http_200_tapi_success_false_dicatat_gagal(): void
+    {
+        // Bentuk respons gateway: 200 OK tapi device terputus.
+        Http::fake(['*' => Http::response([
+            'success' => false,
+            'message' => 'Device tidak terhubung',
+        ], 200)]);
+        $this->setPengaturanWa([
+            'wa_url' => 'https://wa.contoh.com/send-message',
+            'wa_api_key' => 'KUNCI',
+            'wa_number' => '6281111111111',
+        ]);
+        $kelas = Kelas::create(['nama' => 'XII RPL 1']);
+        $siswa = Siswa::create([
+            'nisn' => '0099887700', 'rfid_tag' => 'TAG010', 'nama' => 'Anak Gagal',
+            'kelas_id' => $kelas->id, 'gender' => 'L', 'no_hp_ortu' => '081234567890',
+        ]);
+        $log = NotifikasiLog::create([
+            'nisn' => $siswa->nisn, 'tanggal' => now()->toDateString(), 'tipe' => 'pulang',
+            'nomor_tujuan' => '081234567890', 'pesan' => 'tes', 'status' => 'antre',
+        ]);
+
+        (new KirimNotifikasiAbsensi($log->id))->handle();
+
+        $log->refresh();
+        $this->assertSame('gagal', $log->status);
+        $this->assertStringContainsString('Device tidak terhubung', (string) $log->respons);
+    }
+
     public function test_template_memuat_kolom_no_hp_ortu(): void
     {
         $res = $this->actingAs(\App\Models\User::factory()->create())->get(route('siswa.template'));
@@ -329,6 +358,279 @@ class NotifikasiAbsensiTest extends TestCase
         $this->actingAs($admin)->delete(route('whatsapp.antrean-batal', $log))
             ->assertSessionHasErrors('msg');
         $this->assertSame('terkirim', $log->fresh()->status);
+    }
+
+    public function test_sesi_whatsapp_per_kelas_dipakai_saat_mengirim(): void
+    {
+        Http::fake(['*' => Http::response(['status' => true], 200)]);
+        $this->setPengaturanWa([
+            'wa_url' => 'https://wa.contoh.com/send-message',
+            'wa_api_key' => 'PUSAT',
+            'wa_number' => '6281111111111',
+        ]);
+
+        // Kelas X punya sesi sendiri (nomor + API key), kelas Y ikut pusat.
+        $punyaSesi = Kelas::create(['nama' => 'XII RPL 4', 'wa_number' => '6282222222222', 'wa_api_key' => 'KUNCI-KELAS']);
+        $ikutPusat = Kelas::create(['nama' => 'XII RPL 5']);
+        $siswaA = Siswa::create([
+            'nisn' => '0099006601', 'rfid_tag' => 'TAGSESI1', 'nama' => 'Siswa Sesi A',
+            'kelas_id' => $punyaSesi->id, 'gender' => 'L', 'no_hp_ortu' => '081234567890',
+        ]);
+        $siswaB = Siswa::create([
+            'nisn' => '0099006602', 'rfid_tag' => 'TAGSESI2', 'nama' => 'Siswa Sesi B',
+            'kelas_id' => $ikutPusat->id, 'gender' => 'L', 'no_hp_ortu' => '081298765432',
+        ]);
+
+        foreach ([$siswaA, $siswaB] as $siswa) {
+            $log = NotifikasiLog::create([
+                'nisn' => $siswa->nisn, 'tanggal' => now()->toDateString(), 'tipe' => 'masuk',
+                'keterangan' => 'Tepat Waktu', 'nomor_tujuan' => $siswa->no_hp_ortu,
+                'pesan' => 'tes sesi kelas', 'status' => 'antre', 'jadwal_kirim' => now(),
+            ]);
+            (new KirimNotifikasiAbsensi($log->id))->handle();
+            $this->assertSame('terkirim', $log->fresh()->status);
+        }
+
+        // wa_url kelas kosong -> tetap memakai URL pusat.
+        Http::assertSent(fn ($req) => $req['device_id'] === 'kelas-'.$punyaSesi->id
+            && $req['nomor_pengirim'] === '6282222222222'
+            && $req['api_key'] === 'KUNCI-KELAS'
+            && $req['nomor_penerima'] === '6281234567890'
+            && $req->url() === 'https://wa.contoh.com/send-message');
+        // Kelas tanpa nomor sendiri memakai device pusat.
+        Http::assertSent(fn ($req) => $req['device_id'] === 'pusat'
+            && $req['nomor_pengirim'] === '6281111111111'
+            && $req['api_key'] === 'PUSAT'
+            && $req['nomor_penerima'] === '6281298765432');
+    }
+
+    public function test_antrean_tiap_kelas_berjalan_sendiri(): void
+    {
+        \Illuminate\Support\Facades\Queue::fake();
+        $this->setPengaturanWa([
+            'wa_batch_menit' => '1', 'wa_batch_jumlah' => '1',
+            'wa_kirim_tepat_waktu' => '1', 'wa_kirim_terlambat' => '1', 'wa_kirim_pulang' => '1',
+        ]);
+
+        $kelasA = Kelas::create(['nama' => 'XII RPL 6']);
+        $kelasB = Kelas::create(['nama' => 'XII RPL 7']);
+        $buat = fn (string $nisn, string $tag, int $kelasId) => Siswa::create([
+            'nisn' => $nisn, 'rfid_tag' => $tag, 'nama' => 'Siswa '.$tag,
+            'kelas_id' => $kelasId, 'gender' => 'L', 'no_hp_ortu' => '081234567890',
+        ]);
+        $a1 = $buat('0099007701', 'TAGA1', $kelasA->id);
+        $a2 = $buat('0099007702', 'TAGA2', $kelasA->id);
+        $b1 = $buat('0099007703', 'TAGB1', $kelasB->id);
+        $tanggal = now()->toDateString();
+
+        $logA1 = \App\Support\AntreanWhatsapp::antre($a1, $tanggal, 'masuk', 'Tepat Waktu', 'a1');
+        $logA2 = \App\Support\AntreanWhatsapp::antre($a2, $tanggal, 'masuk', 'Tepat Waktu', 'a2');
+        $logB1 = \App\Support\AntreanWhatsapp::antre($b1, $tanggal, 'masuk', 'Tepat Waktu', 'b1');
+
+        // Dalam satu kelas tetap berjarak 60 detik (1 pesan/menit)...
+        $this->assertSame(60, (int) round($logA1->jadwal_kirim->diffInSeconds($logA2->jadwal_kirim)));
+        // ...tetapi kelas lain tidak ikut menunggu antrean kelas A.
+        $this->assertLessThan(5, (int) round(abs($logA1->jadwal_kirim->diffInSeconds($logB1->jadwal_kirim))));
+    }
+
+    public function test_scan_qr_menyimpan_nomor_sesi_kelas(): void
+    {
+        $admin = \App\Models\User::factory()->create();
+        $this->setPengaturanWa([
+            'wa_url' => 'https://wa.contoh.com/send-message',
+            'wa_api_key' => 'PUSAT',
+            'wa_gateway_url' => 'https://gateway.contoh.com',
+        ]);
+        $kelas = Kelas::create(['nama' => 'XII RPL 8']);
+
+        // Sebelum discan: belum ada nomor, pengiriman jatuh ke device pusat.
+        $this->assertSame('kelas-'.$kelas->id, \App\Support\AntreanWhatsapp::deviceKelas($kelas->id));
+        $this->assertSame('pusat', \App\Support\AntreanWhatsapp::sesi($kelas->id)['device']);
+
+        Http::fake(['*' => Http::response(['status' => 'connected', 'phone_number' => '6282222222222'], 200)]);
+
+        $this->actingAs($admin)->get(route('whatsapp.qr', ['kelas' => $kelas->id]))
+            ->assertOk()
+            ->assertJson(['status' => 'connected', 'phone_number' => '6282222222222', 'device' => 'kelas-'.$kelas->id]);
+
+        // Nomor diambil dari hasil scan, bukan dari input manual.
+        $this->assertSame('6282222222222', $kelas->fresh()->wa_number);
+        // API Key sesi ikut digenerate saat scan berhasil.
+        $this->assertNotEmpty($kelas->fresh()->wa_api_key);
+        Http::assertSent(fn ($req) => $req->url() === 'https://gateway.contoh.com/qr/kelas-'.$kelas->id);
+
+        // Setelah punya nomor, sesi kelas itu yang dipakai untuk mengirim.
+        $sesi = \App\Support\AntreanWhatsapp::sesi($kelas->id);
+        $this->assertSame('kelas-'.$kelas->id, $sesi['device']);
+        $this->assertSame('6282222222222', $sesi['wa_number']);
+
+        // Tabel koneksi menampilkan nomor hasil scan.
+        $this->actingAs($admin)->get(route('whatsapp.index'))
+            ->assertOk()
+            ->assertSee('Koneksi WhatsApp')
+            ->assertSee('Nomor Pengirim')
+            ->assertSee('6282222222222')
+            ->assertSee('XII RPL 8');
+    }
+
+    public function test_scan_qr_pusat_menyimpan_nomor_pusat(): void
+    {
+        $admin = \App\Models\User::factory()->create();
+        $this->setPengaturanWa([
+            'wa_url' => 'https://wa.contoh.com/send-message',
+            'wa_api_key' => 'PUSAT',
+            'wa_gateway_url' => 'https://gateway.contoh.com',
+        ]);
+
+        Http::fake(['*' => Http::response(['status' => 'connected', 'phone_number' => '6281111111111'], 200)]);
+
+        $this->actingAs($admin)->get(route('whatsapp.qr'))
+            ->assertOk()
+            ->assertJson(['status' => 'connected', 'device' => 'pusat']);
+
+        $this->assertSame('6281111111111', \App\Models\Pengaturan::nilai('wa_number'));
+        // Kunci yang sudah ada tidak ditimpa saat scan ulang.
+        $this->assertSame('PUSAT', \App\Models\Pengaturan::nilai('wa_api_key'));
+        Http::assertSent(fn ($req) => $req->url() === 'https://gateway.contoh.com/qr/pusat');
+    }
+
+    public function test_api_key_pusat_digenerate_saat_scan_dan_stabil(): void
+    {
+        $admin = \App\Models\User::factory()->create();
+        $this->setPengaturanWa([
+            'wa_url' => 'https://wa.contoh.com/send-message',
+            'wa_gateway_url' => 'https://gateway.contoh.com',
+        ]);
+        $this->assertSame('', \App\Models\Pengaturan::nilai('wa_api_key'));
+
+        // Gateway tidak memvalidasi api_key; kunci hanya perlu ada & stabil.
+        Http::fake(['*' => Http::response(['status' => 'connected', 'phone_number' => '6281111111111'], 200)]);
+
+        $this->actingAs($admin)->get(route('whatsapp.qr'))->assertOk();
+        $kunci = \App\Models\Pengaturan::nilai('wa_api_key');
+        $this->assertStringStartsWith('wa_', $kunci);
+
+        // Scan ulang sesi yang sama tidak membuat kunci baru.
+        $this->actingAs($admin)->get(route('whatsapp.qr', ['force' => 1]))->assertOk();
+        $this->assertSame($kunci, \App\Models\Pengaturan::nilai('wa_api_key'));
+    }
+
+    public function test_simpan_konfigurasi_tanpa_api_key_tetap_tersimpan(): void
+    {
+        $admin = \App\Models\User::factory()->create();
+
+        $this->actingAs($admin)->post(route('whatsapp.simpan'), [
+            'wa_url' => 'https://wa.contoh.com/send-message',
+            'wa_gateway_url' => 'https://gateway.billnesia.com',
+            'wa_batch_menit' => 10,
+            'wa_batch_jumlah' => 10,
+        ])->assertRedirect(route('whatsapp.index', ['tab' => 'konfigurasi']));
+
+        $this->assertStringStartsWith('wa_', \App\Models\Pengaturan::nilai('wa_api_key'));
+    }
+
+    public function test_qr_memakai_device_kelas_walau_nomor_belum_ada(): void
+    {
+        $admin = \App\Models\User::factory()->create();
+        $this->setPengaturanWa([
+            'wa_url' => 'https://wa.contoh.com/send-message',
+            'wa_api_key' => 'PUSAT',
+            'wa_gateway_url' => 'https://gateway.contoh.com/',
+        ]);
+        $kelas = Kelas::create(['nama' => 'XII RPL 9']);
+
+        Http::fake(['*' => Http::response([
+            'status' => 'pending',
+            'qr' => 'data:image/png;base64,AAA',
+        ], 200)]);
+
+        $this->actingAs($admin)->get(route('whatsapp.qr', ['kelas' => $kelas->id]))
+            ->assertOk()
+            ->assertJson(['status' => 'pending', 'qr' => 'data:image/png;base64,AAA', 'device' => 'kelas-'.$kelas->id]);
+
+        // Device kelas tetap bisa diminta walau nomornya belum diketahui;
+        // host gateway diambil dari wa_gateway_url, bukan dari wa_url.
+        Http::assertSent(fn ($req) => $req->url() === 'https://gateway.contoh.com/qr/kelas-'.$kelas->id);
+        $this->assertNull($kelas->fresh()->wa_number);
+
+        // Tombol Scan Ulang = paksa gateway menghapus sesi lama.
+        $this->actingAs($admin)->get(route('whatsapp.qr', ['kelas' => $kelas->id, 'force' => 1]))->assertOk();
+        Http::assertSent(fn ($req) => $req->url() === 'https://gateway.contoh.com/qr/kelas-'.$kelas->id.'?force=true');
+    }
+
+    public function test_qr_menolak_tanpa_url_gateway(): void
+    {
+        $admin = \App\Models\User::factory()->create();
+        $this->setPengaturanWa([
+            'wa_url' => 'https://wa.contoh.com/send-message',
+            'wa_api_key' => 'PUSAT',
+            'wa_number' => '6281111111111',
+        ]);
+
+        // Nomor pusat ada, tapi URL Gateway belum diisi.
+        $this->actingAs($admin)->get(route('whatsapp.qr'))
+            ->assertStatus(422)
+            ->assertJsonPath('status', 'error');
+
+        Http::assertNothingSent();
+    }
+
+    public function test_url_gateway_disimpan_dari_tab_konfigurasi(): void
+    {
+        $admin = \App\Models\User::factory()->create();
+
+        $this->actingAs($admin)->post(route('whatsapp.simpan'), [
+            'wa_url' => 'https://wa.contoh.com/send-message',
+            'wa_api_key' => 'KUNCI',
+            'wa_number' => '6281111111111',
+            'wa_gateway_url' => 'https://gateway.billnesia.com',
+            'wa_batch_menit' => 10,
+            'wa_batch_jumlah' => 10,
+        ])->assertRedirect(route('whatsapp.index', ['tab' => 'konfigurasi']));
+
+        $this->assertSame('https://gateway.billnesia.com', \App\Models\Pengaturan::nilai('wa_gateway_url'));
+        $this->actingAs($admin)->get(route('whatsapp.index'))
+            ->assertOk()->assertSee('Koneksi WhatsApp')->assertSee('URL Gateway (untuk QR)');
+    }
+
+    public function test_putuskan_sesi_mengosongkan_nomor_pengirim(): void
+    {
+        $admin = \App\Models\User::factory()->create();
+        $this->setPengaturanWa([
+            'wa_url' => 'https://wa.contoh.com/send-message',
+            'wa_api_key' => 'PUSAT',
+            'wa_gateway_url' => 'https://gateway.contoh.com',
+        ]);
+        $kelas = Kelas::create(['nama' => 'XII RPL 10', 'wa_number' => '6283333333333']);
+
+        Http::fake(['*' => Http::response(['success' => true], 200)]);
+
+        $this->actingAs($admin)->post(route('whatsapp.putuskan'), ['kelas' => $kelas->id])
+            ->assertRedirect(route('whatsapp.index', ['tab' => 'konfigurasi']));
+
+        Http::assertSent(fn ($req) => $req->url() === 'https://gateway.contoh.com/disconnect/kelas-'.$kelas->id);
+        // Nomor dikosongkan: kelas itu kembali memakai sesi pusat.
+        $this->assertNull($kelas->fresh()->wa_number);
+        $this->assertSame('pusat', \App\Support\AntreanWhatsapp::sesi($kelas->id)['device']);
+    }
+
+    public function test_status_semua_sesi_dibaca_dari_gateway(): void
+    {
+        $admin = \App\Models\User::factory()->create();
+        $this->setPengaturanWa([
+            'wa_url' => 'https://wa.contoh.com/send-message',
+            'wa_api_key' => 'PUSAT',
+            'wa_gateway_url' => 'https://gateway.contoh.com',
+        ]);
+        $kelas = Kelas::create(['nama' => 'XII RPL 11', 'wa_number' => '6284444444444']);
+
+        Http::fake(['*' => Http::response(['status' => 'connected', 'phone_number' => '6284444444444'], 200)]);
+
+        $this->actingAs($admin)->get(route('whatsapp.status'))
+            ->assertOk()
+            ->assertJsonPath('gateway', true)
+            ->assertJsonPath('sesi.pusat.status', 'connected')
+            ->assertJsonPath('sesi.kelas-'.$kelas->id.'.status', 'connected');
     }
 
     private function setPengaturanWa(array $nilai): void

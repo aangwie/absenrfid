@@ -13,21 +13,26 @@
   </div>
 
   @if ($tab === 'konfigurasi')
-  <div class="max-w-2xl">
+  <div class="max-w-5xl">
     <h2 class="text-base font-semibold text-white mb-1">Konfigurasi WhatsApp API</h2>
     <p class="text-[11px] text-slate-500 mb-4">Pengiriman memakai <span class="font-mono text-slate-300">Content-Type: application/x-www-form-urlencoded</span>.</p>
-    <form action="{{ route('whatsapp.simpan') }}" method="POST" class="flex flex-col gap-3">@csrf
+    <form action="{{ route('whatsapp.simpan') }}" method="POST" class="max-w-2xl flex flex-col gap-3">@csrf
       <div>
         <label class="block text-xs font-semibold text-slate-300 mb-1.5">URL</label>
         <input type="url" name="wa_url" value="{{ old('wa_url', $cfg['wa_url']) }}" placeholder="https://api.contoh.com/send-message" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500" required>
       </div>
       <div>
-        <label class="block text-xs font-semibold text-slate-300 mb-1.5">API Key</label>
-        <input type="text" name="wa_api_key" value="{{ old('wa_api_key', $cfg['wa_api_key']) }}" placeholder="API key dari penyedia" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500" required>
+        <label class="block text-xs font-semibold text-slate-300 mb-1.5">API Key <span class="text-slate-500 font-normal">(opsional)</span></label>
+        <input type="text" name="wa_api_key" value="{{ old('wa_api_key', $cfg['wa_api_key']) }}" placeholder="Kosongkan bila tidak perlu — digenerate otomatis" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500">
+        <p class="text-[11px] text-slate-500 mt-1.5">Digenerate otomatis (dan disimpan) begitu scan QR sesi ini berhasil. Isi manual hanya bila penyedia API Anda mensyaratkan kunci tertentu.</p>
+      </div>
+      <div class="bg-slate-900/60 border border-slate-700 rounded-xl px-3.5 py-2.5 text-[11px] text-slate-400">
+        Nomor pengirim tidak diketik di sini. Nomor diambil otomatis dari hasil scan QR di panel <span class="text-slate-200">Koneksi WhatsApp</span> di bawah.
       </div>
       <div>
-        <label class="block text-xs font-semibold text-slate-300 mb-1.5">Number (pengirim)</label>
-        <input type="text" name="wa_number" value="{{ old('wa_number', $cfg['wa_number']) }}" placeholder="cth 6281234567890" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500" required>
+        <label class="block text-xs font-semibold text-slate-300 mb-1.5">URL Gateway (untuk QR)</label>
+        <input type="url" name="wa_gateway_url" value="{{ old('wa_gateway_url', $cfg['wa_gateway_url']) }}" placeholder="https://gateway.billnesia.com" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500">
+        <p class="text-[11px] text-slate-500 mt-1.5">Basis URL gateway Node (BillNesia), dipakai untuk <span class="font-mono text-slate-300">GET /qr/:deviceId</span>. Boleh dikosongkan bila tidak perlu memindai QR dari sini.</p>
       </div>
 
       <div class="border-t border-slate-700/60 pt-4 mt-1 flex flex-col gap-3">
@@ -70,6 +75,189 @@
       <div><button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-4 py-2 rounded-xl">Simpan</button></div>
     </form>
   </div>
+
+  <div class="max-w-5xl mt-6 border-t border-slate-700/60 pt-5">
+    <h2 class="text-base font-semibold text-white mb-1">Koneksi WhatsApp</h2>
+    <p class="text-[11px] text-slate-500 mb-4">Nomor pengirim tidak diketik manual: pilih sesi, pindai QR-nya dari WhatsApp nomor itu, lalu nomornya tersimpan otomatis dari status gateway. Ulangi untuk kelas berikutnya. Kelas yang belum dipindai memakai sesi Pusat.</p>
+    <div class="flex flex-wrap gap-5 items-start">
+      <div class="w-full sm:w-64">
+        <label class="block text-xs font-semibold text-slate-300 mb-1.5">1. Pilih sesi</label>
+        <select id="wa-qr-pilih" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+          <option value="">Pusat{{ $cfg['wa_number'] ? ' — '.$cfg['wa_number'] : '' }}</option>
+          @foreach ($daftarKelas as $k)
+          <option value="{{ $k->id }}">{{ $k->nama }}{{ $k->wa_number ? ' — '.$k->wa_number : '' }}</option>
+          @endforeach
+        </select>
+        <p class="text-[11px] text-slate-500 mt-1.5">Di HP: WhatsApp &rarr; Perangkat tertaut &rarr; Tautkan perangkat &rarr; scan QR.</p>
+      </div>
+      <div class="flex flex-col items-center gap-1.5">
+        <div class="bg-white rounded-xl p-2 w-[168px] h-[168px] flex items-center justify-center">
+          <img id="wa-qr-img" alt="QR WhatsApp" class="w-40 h-40 hidden">
+          <span id="wa-qr-kosong" class="text-[11px] text-slate-500 text-center px-2">Pilih sesi untuk menampilkan QR</span>
+        </div>
+        <p class="text-[10px] text-slate-500">QR berlaku &plusmn;20 detik.</p>
+      </div>
+      <div class="flex-1 min-w-[14rem]">
+        <p class="text-xs font-semibold text-slate-300 mb-1">2. Status</p>
+        <p id="wa-qr-status" class="text-xs text-slate-300 leading-relaxed">Memuat&hellip;</p>
+      </div>
+    </div>
+    <div class="mt-5 overflow-x-auto rounded-xl border border-slate-700">
+      <table class="min-w-full text-xs border-collapse">
+        <thead class="bg-slate-900/90 text-[11px] uppercase tracking-wide text-slate-400">
+          <tr>
+            <th class="text-left px-3 py-2 font-semibold">Nama Kelas</th>
+            <th class="text-left px-3 py-2 font-semibold">Nomor Pengirim</th>
+            <th class="text-left px-3 py-2 font-semibold">Status</th>
+            <th class="text-left px-3 py-2 font-semibold">Aksi</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-700/60">
+          @php($baris = collect([['id' => '', 'nama' => 'Pusat', 'nomor' => $cfg['wa_number']]])->merge($daftarKelas->map(fn ($k) => ['id' => $k->id, 'nama' => $k->nama, 'nomor' => $k->wa_number])))
+          @foreach ($baris as $b)
+          @php($device = $b['id'] === '' ? \App\Support\AntreanWhatsapp::DEVICE_PUSAT : \App\Support\AntreanWhatsapp::deviceKelas((int) $b['id']))
+          <tr data-sesi="{{ $device }}" data-kelas="{{ $b['id'] }}">
+            <td class="px-3 py-2 align-middle font-semibold text-white">{{ $b['nama'] }}</td>
+            <td class="px-3 py-2 align-middle font-mono wa-nomor">{{ $b['nomor'] ?: '—' }}</td>
+            <td class="px-3 py-2 align-middle"><span class="wa-status px-2 py-0.5 rounded-full border border-slate-600 bg-slate-700 text-slate-300">memeriksa&hellip;</span></td>
+            <td class="px-3 py-2 align-middle">
+              <div class="flex items-center gap-1.5">
+                <button type="button" class="wa-pilih bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 py-1 rounded-lg" data-kelas="{{ $b['id'] }}">Scan Ulang</button>
+                <form method="POST" action="{{ route('whatsapp.putuskan') }}" onsubmit="return confirm('Putuskan sesi ini? Nomornya dikosongkan dan harus discan ulang.')">@csrf
+                  <input type="hidden" name="kelas" value="{{ $b['id'] }}">
+                  <button type="submit" class="bg-rose-600/80 hover:bg-rose-500 text-white px-2.5 py-1 rounded-lg">Putuskan</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          @endforeach
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <script>
+  (function () {
+    var sel = document.getElementById('wa-qr-pilih');
+    if (!sel) return;
+    var img = document.getElementById('wa-qr-img');
+    var kosong = document.getElementById('wa-qr-kosong');
+    var statusEl = document.getElementById('wa-qr-status');
+    var timer = null;
+    var paksa = false;
+
+    function tampil(teks) { statusEl.textContent = teks; }
+
+    // Baris tabel sesi (data-kelas="" untuk Pusat).
+    function baris(kelas) { return document.querySelector('tr[data-kelas="' + kelas + '"]'); }
+
+    function pil(tr, status) {
+      var peta = {
+        connected: ['Terhubung', 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'],
+        pending: ['Menunggu scan', 'bg-amber-500/15 text-amber-300 border-amber-500/40'],
+        connecting: ['Menghubungkan...', 'bg-sky-500/15 text-sky-300 border-sky-500/40'],
+        disconnected: ['Belum terhubung', 'bg-slate-700 text-slate-300 border-slate-600'],
+        error: ['Tidak diketahui', 'bg-rose-500/15 text-rose-300 border-rose-500/40']
+      };
+      var p = peta[status] || peta.error;
+      var el = tr.querySelector('.wa-status');
+      el.textContent = p[0];
+      el.className = 'wa-status px-2 py-0.5 rounded-full border ' + p[1];
+    }
+
+    // Nomor pengirim berasal dari hasil scan, jadi sel tabel diisi gateway.
+    function nomor(tr, nilai) {
+      if (nilai) tr.querySelector('.wa-nomor').textContent = nilai;
+    }
+
+    function hentikan() { clearTimeout(timer); timer = null; }
+    function jadwalkan() { hentikan(); timer = setTimeout(muat, 4000); }
+
+    function muat() {
+      var kelas = sel.value || '';
+      var url = '{{ route('whatsapp.qr') }}?kelas=' + encodeURIComponent(kelas) + (paksa ? '&force=1' : '');
+      paksa = false;
+
+      fetch(url, { headers: { 'Accept': 'application/json' }, cache: 'no-store' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d && d.qr) {
+            img.src = d.qr;
+            img.classList.remove('hidden');
+            kosong.classList.add('hidden');
+          } else {
+            img.classList.add('hidden');
+            img.removeAttribute('src');
+            kosong.classList.remove('hidden');
+          }
+
+          var tr = baris(kelas);
+          if (d.status === 'connected') {
+            tampil('Terhubung' + (d.phone_number ? ' sebagai ' + d.phone_number : '') + '. Nomor sudah tersimpan dan sesi ini siap mengirim.');
+            if (tr) { nomor(tr, d.phone_number); pil(tr, 'connected'); }
+            hentikan();
+          } else if (d.status === 'pending') {
+            tampil('Belum terhubung. Scan QR di samping dari WhatsApp nomor ini.');
+            if (tr) pil(tr, 'pending');
+            jadwalkan();
+          } else if (d.status === 'initializing') {
+            tampil('Gateway sedang membuat QR baru, tunggu beberapa detik - halaman ini menyegarkan sendiri.');
+            if (tr) pil(tr, 'connecting');
+            jadwalkan();
+          } else {
+            tampil(d.message || 'Status gateway tidak dikenali.');
+            hentikan();
+          }
+        })
+        .catch(function () {
+          tampil('Gagal memuat QR. Periksa URL Gateway dan koneksi server.');
+          hentikan();
+        });
+    }
+
+    // Kolom Status semua sesi diisi sekali tiap halaman dibuka.
+    function muatStatus() {
+      fetch('{{ route('whatsapp.status') }}', { headers: { 'Accept': 'application/json' }, cache: 'no-store' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var semua = (d && d.sesi) || {};
+          if (d && d.gateway === false) {
+            document.querySelectorAll('tr[data-sesi] .wa-status').forEach(function (el) {
+              el.textContent = 'URL Gateway belum diisi';
+            });
+            return;
+          }
+          document.querySelectorAll('tr[data-sesi]').forEach(function (tr) {
+            var s = semua[tr.getAttribute('data-sesi')] || {};
+            pil(tr, s.status || 'error');
+            nomor(tr, s.phone_number || '');
+          });
+        })
+        .catch(function () {});
+    }
+
+    function mulai(force) {
+      paksa = !!force;
+      hentikan();
+      muat();
+    }
+
+    sel.addEventListener('change', function () { mulai(false); });
+
+    // Scan Ulang = QR baru; gateway menghapus sesi lama untuk device ini.
+    document.querySelectorAll('.wa-pilih').forEach(function (b) {
+      b.addEventListener('click', function () {
+        sel.value = b.getAttribute('data-kelas');
+        mulai(true);
+        statusEl.scrollIntoView({ block: 'center' });
+      });
+    });
+
+    muatStatus();
+    mulai(false);
+  })();
+  </script>
   <script>
   (function () {
     var m = document.getElementById('wa_batch_menit');
@@ -244,6 +432,7 @@
               <span class="text-[10px] font-bold px-2 py-0.5 rounded-full {{ $h['sukses'] ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-rose-500/20 text-rose-300 border border-rose-500/40' }}">{{ $h['sukses'] ? 'BERHASIL' : 'GAGAL' }}</span>
               @if (! empty($h['nama']))<span class="font-semibold text-white">{{ $h['nama'] }}</span>@endif
               <span class="font-mono text-slate-300">{{ $h['tujuan'] }}</span>
+              <span class="text-[10px] font-mono text-slate-500">via {{ $h['pengirim'] ?: '-' }}</span>
               @if (! is_null($h['http'] ?? null))<span class="ml-auto text-[10px] font-mono text-slate-400">HTTP {{ $h['http'] }}</span>@endif
             </summary>
             <div class="px-3 pb-3 flex flex-col gap-1.5 border-t border-slate-800 pt-2">

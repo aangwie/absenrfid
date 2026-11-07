@@ -9,7 +9,7 @@ class Kelas extends Model
 {
     protected $table = 'tb_kelas';
 
-    protected $fillable = ['nama'];
+    protected $fillable = ['nama', 'wa_number', 'wa_api_key', 'wa_url'];
 
     public function siswas(): HasMany
     {

@@ -50,22 +50,28 @@ class KirimNotifikasiAbsensi implements ShouldQueue
 
         DB::table('tb_pengaturan')->updateOrInsert(['kunci' => 'cron_last_run'], ['nilai' => now()->toDateTimeString(), 'updated_at' => now(), 'created_at' => now()]);
 
-        // Belum waktunya dikirim (jadwal atau jeda antar pesan). Kembalikan ke
-        // antrean. Saat dipanggil langsung tanpa queue ($this->job kosong,
-        // misal aksi Tandai satu siswa) pesan tetap dikirim seketika.
-        $tunggu = $this->detikMenunggu($log);
-        if ($tunggu > 0 && $this->job) {
-            $this->release($tunggu);
+        // Sesi WhatsApp milik kelas siswa ini; kolom kelas yang kosong ikut
+        // konfigurasi pusat. Jadi tiap kelas bisa memakai nomor sendiri.
+        $sesi = AntreanWhatsapp::sesi($log->siswa?->kelas_id);
+        $url = $sesi['wa_url'];
+        $apiKey = $sesi['wa_api_key'];
+        $sender = $sesi['wa_number'];
+        if ($url === '' || $apiKey === '' || $sender === '') {
+            $log->update(['status' => 'gagal', 'respons' => 'Konfigurasi WhatsApp (URL/API Key) atau nomor sesi belum siap — pindai QR sesi pusat/kelas di tab Konfigurasi.', 'sent_at' => now()]);
 
             return;
         }
 
-        $cfg = Pengaturan::ambil();
-        $url = trim($cfg['wa_url'] ?? '');
-        $apiKey = trim($cfg['wa_api_key'] ?? '');
-        $sender = trim($cfg['wa_number'] ?? '');
-        if ($url === '' || $apiKey === '' || $sender === '') {
-            $log->update(['status' => 'gagal', 'respons' => 'Konfigurasi WhatsApp (URL/API Key/Number) belum disimpan.', 'sent_at' => now()]);
+        // Jeda dijaga per nomor pengirim, supaya antrean kelas lain tidak
+        // saling menunggu.
+        $kunciJeda = AntreanWhatsapp::kunciTerakhirKirim($sender);
+
+        // Belum waktunya dikirim (jadwal atau jeda antar pesan). Kembalikan ke
+        // antrean. Saat dipanggil langsung tanpa queue ($this->job kosong,
+        // misal aksi Tandai satu siswa) pesan tetap dikirim seketika.
+        $tunggu = $this->detikMenunggu($log, $kunciJeda);
+        if ($tunggu > 0 && $this->job) {
+            $this->release($tunggu);
 
             return;
         }
@@ -85,13 +91,14 @@ class KirimNotifikasiAbsensi implements ShouldQueue
 
         // Pesan slot lebih dulu agar worker lain tidak mengirim pesan
         // berikutnya pada detik yang sama (mis. setelah cron tertinggal).
-        $this->tandaiSlot();
+        $this->tandaiSlot($kunciJeda);
 
         try {
             $res = Http::withHeaders(['Content-Type' => 'application/x-www-form-urlencoded'])
                 ->asForm()
                 ->timeout(30)
                 ->post($url, [
+                    'device_id' => $sesi['device'],
                     'nomor_pengirim' => $sender,
                     'api_key' => $apiKey,
                     'nomor_penerima' => $tujuan,
@@ -102,9 +109,12 @@ class KirimNotifikasiAbsensi implements ShouldQueue
             if (strlen($respons) > 2000) {
                 $respons = substr($respons, 0, 2000).'... (dipotong)';
             }
+            // Gateway bisa membalas HTTP 200 dengan {"success": false}
+            // (device terputus, nomor tidak terdaftar). Jangan dicatat terkirim.
+            $berhasil = $res->successful() && $res->json('success') !== false;
             $log->update([
                 'nomor_tujuan' => $tujuan,
-                'status' => $res->successful() ? 'terkirim' : 'gagal',
+                'status' => $berhasil ? 'terkirim' : 'gagal',
                 'http_code' => $res->status(),
                 'respons' => $respons,
                 'sent_at' => now(),
@@ -118,7 +128,7 @@ class KirimNotifikasiAbsensi implements ShouldQueue
     }
 
     /** Sisa detik sebelum pesan ini boleh dikirim (0 = boleh sekarang). */
-    private function detikMenunggu(NotifikasiLog $log): int
+    private function detikMenunggu(NotifikasiLog $log, string $kunciJeda): int
     {
         $tunggu = 0;
 
@@ -126,7 +136,7 @@ class KirimNotifikasiAbsensi implements ShouldQueue
             $tunggu = $log->jadwal_kirim->getTimestamp() - now()->getTimestamp();
         }
 
-        $terakhir = Pengaturan::nilai('wa_terakhir_kirim');
+        $terakhir = Pengaturan::nilai($kunciJeda);
         if ($terakhir !== '') {
             try {
                 $tunggu = max($tunggu, Carbon::parse($terakhir)->getTimestamp() + AntreanWhatsapp::jedaDetik() - now()->getTimestamp());
@@ -138,10 +148,10 @@ class KirimNotifikasiAbsensi implements ShouldQueue
         return max(0, (int) ceil($tunggu));
     }
 
-    private function tandaiSlot(): void
+    private function tandaiSlot(string $kunciJeda): void
     {
         DB::table('tb_pengaturan')->updateOrInsert(
-            ['kunci' => 'wa_terakhir_kirim'],
+            ['kunci' => $kunciJeda],
             ['nilai' => now()->toDateTimeString(), 'updated_at' => now(), 'created_at' => now()]
         );
     }

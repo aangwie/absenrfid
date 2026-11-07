@@ -4,12 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Jobs\CronPing;
 use App\Jobs\KirimNotifikasiAbsensi;
+use App\Models\Kelas;
 use App\Models\NotifikasiLog;
 use App\Models\Pengaturan;
 use App\Models\Siswa;
 use App\Models\WhatsappTemplate;
 use App\Support\AntreanWhatsapp;
 use Carbon\Carbon;
+use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -25,11 +27,16 @@ class WhatsappController extends Controller
             $tab = 'konfigurasi';
         }
         $def = [
-            'wa_url' => '', 'wa_api_key' => '', 'wa_number' => '',
+            'wa_url' => '', 'wa_api_key' => '', 'wa_number' => '', 'wa_gateway_url' => '',
             'wa_batch_menit' => (string) AntreanWhatsapp::DURASI_DEFAULT,
             'wa_batch_jumlah' => (string) AntreanWhatsapp::JUMLAH_DEFAULT,
         ];
         $cfg = array_merge($def, Pengaturan::ambil());
+
+        // Tab Konfigurasi juga mengatur sesi WhatsApp tiap kelas.
+        $daftarKelas = $tab === 'konfigurasi'
+            ? Kelas::withCount('siswas')->orderBy('nama')->get()
+            : collect();
 
         $jumlahAntre = NotifikasiLog::query()->antre()->count();
         $logs = $tab === 'log'
@@ -59,15 +66,16 @@ class WhatsappController extends Controller
                 ->get(['nisn', 'nama', 'kelas_id', 'no_hp_ortu'])
             : collect();
 
-        return view('whatsapp.index', compact('tab', 'cfg', 'logs', 'cron', 'antrean', 'jadwal', 'jumlahAntre', 'templates', 'siswaWa'));
+        return view('whatsapp.index', compact('tab', 'cfg', 'logs', 'cron', 'antrean', 'jadwal', 'jumlahAntre', 'templates', 'siswaWa', 'daftarKelas'));
     }
 
     public function simpan(Request $request)
     {
         $data = $request->validate([
             'wa_url' => ['required', 'url', 'max:500'],
-            'wa_api_key' => ['required', 'string', 'max:500'],
-            'wa_number' => ['required', 'string', 'max:30'],
+            'wa_gateway_url' => ['nullable', 'url', 'max:500'],
+            'wa_api_key' => ['nullable', 'string', 'max:500'],
+            'wa_number' => ['nullable', 'string', 'max:30'],
             'wa_batch_menit' => ['nullable', 'integer', 'min:1', 'max:1440'],
             'wa_batch_jumlah' => ['nullable', 'integer', 'min:1', 'max:1440'],
             'wa_kirim_tepat_waktu' => ['nullable', 'boolean'],
@@ -76,8 +84,7 @@ class WhatsappController extends Controller
         ], [
             'wa_url.required' => 'URL API wajib diisi.',
             'wa_url.url' => 'URL API tidak valid.',
-            'wa_api_key.required' => 'API Key wajib diisi.',
-            'wa_number.required' => 'Number pengirim wajib diisi.',
+            'wa_gateway_url.url' => 'URL Gateway tidak valid (contoh: https://gateway.billnesia.com).',
             'wa_batch_menit.integer' => 'Durasi harus berupa angka (menit).',
             'wa_batch_menit.min' => 'Durasi minimal 1 menit.',
             'wa_batch_menit.max' => 'Durasi maksimal 1440 menit (24 jam).',
@@ -88,8 +95,17 @@ class WhatsappController extends Controller
 
         $nilai = [
             'wa_url' => trim($data['wa_url']),
-            'wa_api_key' => trim($data['wa_api_key']),
-            'wa_number' => trim($data['wa_number']),
+            // Dikosongkan pun aman: kunci digenerate otomatis saat scan QR dan
+            // saat form ini disimpan tanpa API Key.
+            'wa_api_key' => trim((string) ($data['wa_api_key'] ?? '')) ?: AntreanWhatsapp::pastikanApiKey(null),
+            // Nomor pengirim kini hasil scan QR (AntreanWhatsapp::simpanNomor).
+            // Field ini hanya dipertahankan untuk kompatibilitas pemanggilan lama.
+            'wa_number' => trim((string) ($data['wa_number'] ?? Pengaturan::nilai('wa_number'))),
+            // Basis URL gateway Node untuk QR/status. Tidak diturunkan dari
+            // wa_url karena endpoint kirim bisa beda host.
+            'wa_gateway_url' => $request->has('wa_gateway_url')
+                ? trim((string) $request->input('wa_gateway_url'))
+                : Pengaturan::nilai('wa_gateway_url'),
             'wa_batch_menit' => (string) ($data['wa_batch_menit'] ?? AntreanWhatsapp::durasiMenit()),
             'wa_batch_jumlah' => (string) ($data['wa_batch_jumlah'] ?? AntreanWhatsapp::jumlahPesan()),
         ];
@@ -128,6 +144,122 @@ class WhatsappController extends Controller
         }
 
         return redirect()->route('whatsapp.index', ['tab' => 'konfigurasi'])->with('ok', $pesan);
+    }
+
+    /**
+     * Proxy QR gateway untuk satu sesi: Pusat atau satu kelas. Dipanggil panel
+     * Koneksi WhatsApp (bukan langsung dari browser) supaya host gateway tidak
+     * perlu diekspos dan tidak kena CORS.
+     *
+     * Balasan GET /qr/:deviceId milik gateway:
+     *   initializing → sesi baru dibuat, QR menyusul
+     *   pending      → {qr:'data:image/png;base64,...'} siap dipindai
+     *   connected    → {phone_number:'62...'} sudah tertaut
+     * force=1 menghapus sesi lama lalu membuat QR baru (tombol Scan Ulang).
+     *
+     * Nomor pengirim hanya diambil dari phone_number saat connected; tidak ada
+     * input nomor manual lagi.
+     */
+    public function qr(Request $request)
+    {
+        $dasar = rtrim(trim(Pengaturan::nilai('wa_gateway_url')), '/');
+        if ($dasar === '') {
+            return $this->jsonSesi(['status' => 'error', 'message' => 'Isi URL Gateway di form atas (contoh https://gateway.billnesia.com) untuk menampilkan QR.'], 422);
+        }
+
+        $kelasId = $request->filled('kelas') ? (int) $request->get('kelas') : null;
+        if ($kelasId && ! Kelas::whereKey($kelasId)->exists()) {
+            return $this->jsonSesi(['status' => 'error', 'message' => 'Kelas tidak ditemukan.'], 404);
+        }
+        $device = $kelasId ? AntreanWhatsapp::deviceKelas($kelasId) : AntreanWhatsapp::DEVICE_PUSAT;
+
+        try {
+            $res = Http::timeout(15)->acceptJson()->get(
+                $dasar.'/qr/'.$device,
+                $request->boolean('force') ? ['force' => 'true'] : []
+            );
+        } catch (\Throwable $e) {
+            return $this->jsonSesi(['status' => 'error', 'message' => 'Gagal menghubungi gateway: '.$e->getMessage()], 502);
+        }
+
+        $data = (array) $res->json();
+        if (! $res->successful()) {
+            return $this->jsonSesi(['status' => 'error', 'message' => 'Gateway merespons HTTP '.$res->status().'. '.($data['error'] ?? 'Periksa URL Gateway.')], 502);
+        }
+
+        // Scan berhasil: nomor dari gateway disimpan ke sesi ini.
+        if (($data['status'] ?? '') === 'connected' && ! empty($data['phone_number'])) {
+            AntreanWhatsapp::simpanNomor($kelasId, (string) $data['phone_number']);
+        }
+
+        return $this->jsonSesi($data + ['device' => $device]);
+    }
+
+    /** Status semua sesi (pusat + tiap kelas) untuk kolom Status di tabel. */
+    public function status()
+    {
+        $dasar = rtrim(trim(Pengaturan::nilai('wa_gateway_url')), '/');
+        if ($dasar === '') {
+            return $this->jsonSesi(['gateway' => false, 'sesi' => []]);
+        }
+
+        $device = [AntreanWhatsapp::DEVICE_PUSAT];
+        foreach (Kelas::orderBy('nama')->pluck('id') as $id) {
+            $device[] = AntreanWhatsapp::deviceKelas((int) $id);
+        }
+
+        // Satu request paralel per device, timeout pendek supaya halaman tidak
+        // menggantung saat gateway lambat.
+        $hasil = Http::pool(fn ($pool) => collect($device)->mapWithKeys(
+            fn (string $d) => [$d => $pool->as($d)->timeout(4)->acceptJson()->get($dasar.'/status/'.$d)]
+        )->all());
+
+        $sesi = [];
+        foreach ($hasil as $d => $res) {
+            $sesi[$d] = $res instanceof Response && $res->successful()
+                ? (array) ($res->json() ?: ['status' => 'error'])
+                : ['status' => 'error'];
+        }
+
+        return $this->jsonSesi(['gateway' => true, 'sesi' => $sesi]);
+    }
+
+    /**
+     * Putuskan sesi: gateway logout + hapus folder sesi, lalu nomornya
+     * dikosongkan. Kelas itu sementara memakai sesi pusat sampai discan ulang.
+     */
+    public function putuskan(Request $request)
+    {
+        $kelasId = $request->filled('kelas') ? (int) $request->get('kelas') : null;
+        $device = $kelasId ? AntreanWhatsapp::deviceKelas($kelasId) : AntreanWhatsapp::DEVICE_PUSAT;
+        $dasar = rtrim(trim(Pengaturan::nilai('wa_gateway_url')), '/');
+
+        if ($dasar === '') {
+            return back()->withErrors(['msg' => 'URL Gateway belum diisi, sesi tidak bisa diputuskan dari sini.']);
+        }
+
+        try {
+            $res = Http::timeout(15)->acceptJson()->post($dasar.'/disconnect/'.$device);
+        } catch (\Throwable $e) {
+            return back()->withErrors(['msg' => 'Gagal menghubungi gateway: '.$e->getMessage()]);
+        }
+
+        if (! $res->successful()) {
+            return back()->withErrors(['msg' => 'Gateway gagal memutus sesi (HTTP '.$res->status().'). '.$res->json('error', '')]);
+        }
+
+        AntreanWhatsapp::simpanNomor($kelasId, null);
+
+        $nama = $kelasId ? (Kelas::find($kelasId)?->nama ?? 'Kelas') : 'Pusat';
+
+        return redirect()->route('whatsapp.index', ['tab' => 'konfigurasi'])
+            ->with('ok', "Sesi {$nama} diputuskan dan nomornya dikosongkan. Scan ulang QR untuk menyambung lagi.");
+    }
+
+    /** JSON tanpa cache: status sesi berubah tiap beberapa detik. */
+    private function jsonSesi(array $data, int $kode = 200)
+    {
+        return response()->json($data, $kode)->header('Cache-Control', 'no-store');
     }
 
     public function uji(Request $request)
@@ -179,19 +311,23 @@ class WhatsappController extends Controller
                 ->withErrors(['msg' => 'Tidak ada siswa valid yang dipilih.']);
         }
 
-        $cfg = Pengaturan::ambil();
-        $url = trim($cfg['wa_url'] ?? '');
-        $apiKey = trim($cfg['wa_api_key'] ?? '');
-        $sender = trim($cfg['wa_number'] ?? '');
-
         $daftar = [];
         $berhasil = 0;
         $gagal = 0;
 
         foreach ($targets as $target) {
+            // Nomor pengirim mengikuti sesi kelas siswa; tujuan manual memakai
+            // konfigurasi pusat.
+            $sesi = AntreanWhatsapp::sesi($target['siswa']?->kelas_id);
+            $url = $sesi['wa_url'];
+            $apiKey = $sesi['wa_api_key'];
+            $sender = $sesi['wa_number'];
+            $device = $sesi['device'];
+
             $item = [
                 'nama' => $target['nama'],
                 'tujuan' => $target['nomor'] !== '' ? $target['nomor'] : ($target['asli'] !== '' ? $target['asli'] : '-'),
+                'pengirim' => $sender,
                 'http' => null,
                 'sukses' => false,
                 'ringkasan' => '',
@@ -199,8 +335,8 @@ class WhatsappController extends Controller
             ];
 
             if ($url === '' || $apiKey === '' || $sender === '') {
-                $item['ringkasan'] = 'Konfigurasi WhatsApp belum lengkap. Isi URL, API Key, dan Number di tab Konfigurasi.';
-                $item['detail'] = 'wa_url / wa_api_key / wa_number kosong.';
+                $item['ringkasan'] = 'Konfigurasi WhatsApp belum lengkap. Isi URL API + API Key di tab Konfigurasi, lalu pindai QR sesi kelas/pusat di panel Koneksi WhatsApp.';
+                $item['detail'] = 'wa_url / wa_api_key kosong (kelas maupun pusat), atau nomor sesi belum didapat dari scan QR.';
             } elseif ($target['nomor'] === '') {
                 $item['ringkasan'] = 'Nomor HP kosong atau tidak valid.';
                 $item['detail'] = 'Nomor asli: '.($target['asli'] !== '' ? $target['asli'] : '(kosong)');
@@ -217,7 +353,7 @@ class WhatsappController extends Controller
                     ]);
                 }
 
-                $item = array_merge($item, $this->kirimSatuPesan($url, $apiKey, $sender, $target['nomor'], $pesan));
+                $item = array_merge($item, $this->kirimSatuPesan($url, $apiKey, $sender, $device, $target['nomor'], $pesan));
             }
 
             if ($item['sukses']) {
@@ -257,13 +393,16 @@ class WhatsappController extends Controller
     }
 
     /** Kirim satu pesan ke API WhatsApp; hasilnya siap ditampilkan di UI. */
-    private function kirimSatuPesan(string $url, string $apiKey, string $sender, string $tujuan, string $pesan): array
+    private function kirimSatuPesan(string $url, string $apiKey, string $sender, string $device, string $tujuan, string $pesan): array
     {
         try {
             $res = Http::withHeaders(['Content-Type' => 'application/x-www-form-urlencoded'])
                 ->asForm()
                 ->timeout(15)
                 ->post($url, [
+                    // device_id membuat gateway memakai sesi yang tepat walau
+                    // peta nomor→device di memori gateway kosong (baru restart).
+                    'device_id' => $device,
                     'nomor_pengirim' => $sender,
                     'api_key' => $apiKey,
                     'nomor_penerima' => $tujuan,
@@ -280,7 +419,8 @@ class WhatsappController extends Controller
                 $detail = substr($detail, 0, 1200).'... (dipotong)';
             }
 
-            if ($res->successful()) {
+            // Sama seperti job antrean: HTTP 200 + {"success": false} = gagal.
+            if ($res->successful() && ($decoded['success'] ?? null) !== false) {
                 $ket = 'Berhasil: API merespons HTTP '.$res->status().'. Cek detail respons & pastikan pesan masuk di nomor tujuan.';
                 if (is_array($decoded)) {
                     foreach (['message', 'msg', 'status', 'result', 'success'] as $k) {
@@ -296,7 +436,9 @@ class WhatsappController extends Controller
             return [
                 'sukses' => false,
                 'http' => $res->status(),
-                'ringkasan' => 'Gagal: API merespons HTTP '.$res->status().' (bukan 2xx). Umumnya API Key / sender / format nomor salah, atau kuota habis.',
+                'ringkasan' => $res->successful()
+                    ? 'Gagal: API membalas HTTP 200 tetapi success=false. Biasanya device WhatsApp terputus atau nomor tujuan tidak valid.'
+                    : 'Gagal: API merespons HTTP '.$res->status().' (bukan 2xx). Umumnya API Key / sender / format nomor salah, atau kuota habis.',
                 'detail' => $detail,
             ];
         } catch (\Throwable $e) {
